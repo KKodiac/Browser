@@ -1,6 +1,10 @@
 import SwiftUI
 import WebKit
 
+extension Notification.Name {
+    static let focusURLBar = Notification.Name("FocusURLBar")
+}
+
 struct ContentView: View {
     @State private var tabs: [BrowserTab] = [BrowserTab()]
     @State private var selectedTabId: UUID?
@@ -19,9 +23,9 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            toolbar
             tabBar
             contentArea
+            urlBar
         }
         .onAppear {
             if selectedTabId == nil, let first = tabs.first {
@@ -44,34 +48,55 @@ struct ContentView: View {
                 }
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .focusURLBar)) { _ in
+            urlBarFocused = true
+        }
     }
 
-    private var toolbar: some View {
-        HStack(spacing: 8) {
-            Button(action: { currentWebView?.goBack() }) {
-                Image(systemName: "chevron.left")
-            }
-            .buttonStyle(.plain)
-            .disabled(selectedTab?.canGoBack != true)
+    /// URL / search bar at the bottom, below the web content.
+    private var urlBar: some View {
+        HStack(spacing: 10) {
+            HStack(spacing: 6) {
+                Button(action: { currentWebView?.goBack() }) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 13, weight: .medium))
+                        .frame(width: 28, height: 28)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(selectedTab?.canGoBack != true)
+                .opacity(selectedTab?.canGoBack == true ? 1 : 0.4)
 
-            Button(action: { currentWebView?.goForward() }) {
-                Image(systemName: "chevron.right")
-            }
-            .buttonStyle(.plain)
-            .disabled(selectedTab?.canGoForward != true)
+                Button(action: { currentWebView?.goForward() }) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .medium))
+                        .frame(width: 28, height: 28)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(selectedTab?.canGoForward != true)
+                .opacity(selectedTab?.canGoForward == true ? 1 : 0.4)
 
-            Button(action: { currentWebView?.reload() }) {
-                Image(systemName: "arrow.clockwise")
+                Button(action: { currentWebView?.reload() }) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 12, weight: .medium))
+                        .frame(width: 28, height: 28)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(selectedTab?.isLoading == true)
             }
-            .buttonStyle(.plain)
-            .disabled(selectedTab?.isLoading == true)
 
             TextField("Search or enter URL", text: $urlBarText)
                 .textFieldStyle(.plain)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Color(nsColor: .controlBackgroundColor))
-                .cornerRadius(6)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color(nsColor: .textBackgroundColor))
+                .cornerRadius(8)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(Color(nsColor: .separatorColor).opacity(0.6), lineWidth: 1)
+                )
                 .onSubmit {
                     loadURL(urlBarText)
                 }
@@ -79,31 +104,40 @@ struct ContentView: View {
 
             if selectedTab?.isLoading == true {
                 ProgressView()
-                    .scaleEffect(0.7)
+                    .scaleEffect(0.8)
+                    .frame(width: 24, height: 24)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
         .background(Color(nsColor: .windowBackgroundColor))
+        .overlay(alignment: .top) {
+            Divider()
+        }
     }
 
     private var tabBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 0) {
+            HStack(spacing: 4) {
                 ForEach(tabs) { tab in
                     tabButton(tab)
                 }
                 Button(action: addTab) {
                     Image(systemName: "plus")
+                        .font(.system(size: 14, weight: .medium))
                         .frame(width: 28, height: 28)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
         }
-        .frame(height: 36)
-        .background(Color(nsColor: .controlBackgroundColor))
+        .frame(height: 40)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .overlay(alignment: .bottom) {
+            Divider()
+        }
     }
 
     private func tabButton(_ tab: BrowserTab) -> some View {
@@ -140,7 +174,13 @@ struct ContentView: View {
                             currentWebView = w
                         }
                     },
-                    onLoadURL: { _ in }
+                    onLoadURL: { url in
+                        DispatchQueue.main.async {
+                            if tab.id == selectedId {
+                                urlBarText = url.absoluteString
+                            }
+                        }
+                    }
                 )
                 .opacity(tab.id == selectedId ? 1 : 0)
                 .allowsHitTesting(tab.id == selectedId)

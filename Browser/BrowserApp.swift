@@ -17,6 +17,11 @@ struct BrowserApp: App {
                     .keyboardShortcut("]", modifiers: .command)
                 Button("Reload") {}
                     .keyboardShortcut("r", modifiers: .command)
+                Divider()
+                Button("Focus URL Bar") {
+                    NotificationCenter.default.post(name: Notification.Name.focusURLBar, object: nil)
+                }
+                .keyboardShortcut("l", modifiers: .command)
             }
         }
     }

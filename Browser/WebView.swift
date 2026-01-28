@@ -21,6 +21,7 @@ struct WebView: NSViewRepresentable {
     func updateNSView(_ webView: WKWebView, context: Context) {
         context.coordinator.tab = tab
         context.coordinator.onRegisterWebView = onRegisterWebView
+        context.coordinator.onLoadURL = onLoadURL
         if isActive {
             // Defer to avoid "Modifying state during view update" — callback sets ContentView's @State
             DispatchQueue.main.async {
@@ -42,19 +43,21 @@ struct WebView: NSViewRepresentable {
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(tab: tab, onRegisterWebView: onRegisterWebView)
+        Coordinator(tab: tab, onRegisterWebView: onRegisterWebView, onLoadURL: onLoadURL)
     }
 
     class Coordinator: NSObject, WKNavigationDelegate {
         var tab: BrowserTab
         var webView: WKWebView?
         var onRegisterWebView: (WKWebView?) -> Void
+        var onLoadURL: (URL) -> Void
         /// URL we last started loading (or that finished). Prevents duplicate load() calls that cause NSURLErrorCancelled (-999).
         var lastLoadedURL: URL?
 
-        init(tab: BrowserTab, onRegisterWebView: @escaping (WKWebView?) -> Void) {
+        init(tab: BrowserTab, onRegisterWebView: @escaping (WKWebView?) -> Void, onLoadURL: @escaping (URL) -> Void) {
             self.tab = tab
             self.onRegisterWebView = onRegisterWebView
+            self.onLoadURL = onLoadURL
         }
 
         func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
@@ -69,6 +72,9 @@ struct WebView: NSViewRepresentable {
             tab.canGoBack = webView.canGoBack
             tab.canGoForward = webView.canGoForward
             tab.suggestedURL = webView.url?.absoluteString ?? ""
+            if let url = webView.url {
+                onLoadURL(url)
+            }
         }
 
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
