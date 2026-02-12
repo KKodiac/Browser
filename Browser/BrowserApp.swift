@@ -1,25 +1,36 @@
+import ComposableArchitecture
 import SwiftUI
 
 @main
 struct BrowserApp: App {
+    @State private var store = Store(initialState: AppFeature.State()) {
+        AppFeature()
+    }
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(store: store)
                 .frame(minWidth: 800, minHeight: 600)
         }
         .windowStyle(.automatic)
         .commands {
             CommandGroup(replacing: .newItem) {}
             CommandMenu("Navigation") {
-                Button("Back") {}
-                    .keyboardShortcut("[", modifiers: .command)
-                Button("Forward") {}
-                    .keyboardShortcut("]", modifiers: .command)
-                Button("Reload") {}
-                    .keyboardShortcut("r", modifiers: .command)
+                Button("Back") {
+                    store.send(.goBack)
+                }
+                .keyboardShortcut("[", modifiers: .command)
+                Button("Forward") {
+                    store.send(.goForward)
+                }
+                .keyboardShortcut("]", modifiers: .command)
+                Button("Reload") {
+                    store.send(.reload)
+                }
+                .keyboardShortcut("r", modifiers: .command)
                 Divider()
                 Button("Focus URL Bar") {
-                    NotificationCenter.default.post(name: Notification.Name.focusURLBar, object: nil)
+                    store.send(.focusURLBar)
                 }
                 .keyboardShortcut("l", modifiers: .command)
             }

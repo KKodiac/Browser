@@ -1,25 +1,12 @@
+import ComposableArchitecture
 import SwiftUI
 import WebKit
 
-extension Notification.Name {
-    static let focusURLBar = Notification.Name("FocusURLBar")
-}
-
 struct ContentView: View {
-    @State private var tabs: [BrowserTab] = [BrowserTab()]
-    @State private var selectedTabId: UUID?
+    @Bindable var store: StoreOf<AppFeature>
     @State private var currentWebView: WKWebView?
-    @State private var urlBarText: String = ""
     @FocusState private var urlBarFocused: Bool
-
-    private var selectedTab: BrowserTab? {
-        tabs.first { $0.id == selectedTabId } ?? tabs.first
-    }
-
-    private var selectedId: UUID {
-        get { selectedTabId ?? tabs.first!.id }
-        set { selectedTabId = newValue }
-    }
+    @FocusState private var renameFieldFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
@@ -28,32 +15,18 @@ struct ContentView: View {
             urlBar
         }
         .onAppear {
-            if selectedTabId == nil, let first = tabs.first {
-                selectedTabId = first.id
-                urlBarText = first.suggestedURL
-            }
+            store.send(.onAppear)
         }
-        .onChange(of: selectedTabId) { _, newId in
-            if let id = newId, let t = tabs.first(where: { $0.id == id }) {
-                DispatchQueue.main.async {
-                    urlBarText = t.urlString
-                    currentWebView = nil
-                }
-            }
-        }
-        .onChange(of: selectedTab?.urlString) { _, _ in
-            if let t = selectedTab {
-                DispatchQueue.main.async {
-                    urlBarText = t.urlString
-                }
-            }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .focusURLBar)) { _ in
+        .onChange(of: store.focusURLBarTrigger) { _, _ in
             urlBarFocused = true
+        }
+        .onChange(of: store.focusRenameFieldTrigger) { _, _ in
+            renameFieldFocused = true
         }
     }
 
-    /// URL / search bar at the bottom, below the web content.
+    // MARK: - URL Bar
+
     private var urlBar: some View {
         HStack(spacing: 10) {
             HStack(spacing: 6) {
@@ -64,8 +37,8 @@ struct ContentView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .disabled(selectedTab?.canGoBack != true)
-                .opacity(selectedTab?.canGoBack == true ? 1 : 0.4)
+                .disabled(store.selectedTab?.canGoBack != true)
+                .opacity(store.selectedTab?.canGoBack == true ? 1 : 0.4)
 
                 Button(action: { currentWebView?.goForward() }) {
                     Image(systemName: "chevron.right")
@@ -74,8 +47,8 @@ struct ContentView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .disabled(selectedTab?.canGoForward != true)
-                .opacity(selectedTab?.canGoForward == true ? 1 : 0.4)
+                .disabled(store.selectedTab?.canGoForward != true)
+                .opacity(store.selectedTab?.canGoForward == true ? 1 : 0.4)
 
                 Button(action: { currentWebView?.reload() }) {
                     Image(systemName: "arrow.clockwise")
@@ -84,25 +57,25 @@ struct ContentView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .disabled(selectedTab?.isLoading == true)
+                .disabled(store.selectedTab?.isLoading == true)
             }
 
-            TextField("Search or enter URL", text: $urlBarText)
+            TextField("Search or enter URL", text: $store.urlBarText)
                 .textFieldStyle(.plain)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .background(Color(nsColor: .textBackgroundColor))
-                .cornerRadius(8)
+                .clipShape(.rect(cornerRadius: 8))
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
                         .strokeBorder(Color(nsColor: .separatorColor).opacity(0.6), lineWidth: 1)
                 )
                 .onSubmit {
-                    loadURL(urlBarText)
+                    store.send(.urlBarSubmitted)
                 }
                 .focused($urlBarFocused)
 
-            if selectedTab?.isLoading == true {
+            if store.selectedTab?.isLoading == true {
                 ProgressView()
                     .scaleEffect(0.8)
                     .frame(width: 24, height: 24)
@@ -116,13 +89,18 @@ struct ContentView: View {
         }
     }
 
+    // MARK: - Tab Bar
+
     private var tabBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
+        ScrollView(.horizontal) {
             HStack(spacing: 4) {
-                ForEach(tabs) { tab in
-                    tabButton(tab)
+                ForEach(store.ungroupedTabs) { tab in
+                    ungroupedTabButton(tab)
                 }
-                Button(action: addTab) {
+                ForEach(store.tabGroups) { group in
+                    groupSection(group)
+                }
+                Button(action: { store.send(.addTab) }) {
                     Image(systemName: "plus")
                         .font(.system(size: 14, weight: .medium))
                         .frame(width: 28, height: 28)
@@ -133,112 +111,170 @@ struct ContentView: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
         }
-        .frame(height: 40)
+        .scrollIndicators(.hidden)
+        .frame(minHeight: 40)
         .background(Color(nsColor: .windowBackgroundColor))
         .overlay(alignment: .bottom) {
             Divider()
         }
     }
 
-    private func tabButton(_ tab: BrowserTab) -> some View {
-        let isSelected = tab.id == selectedId
+    private func groupSection(_ group: TabGroup) -> some View {
+        HStack(spacing: 2) {
+            groupHeader(group)
+            if !group.isCollapsed {
+                ForEach(group.tabs) { tab in
+                    groupedTabButton(tab, group: group)
+                }
+            }
+        }
+    }
+
+    private func groupHeader(_ group: TabGroup) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: group.isCollapsed ? "chevron.right" : "chevron.down")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(.secondary)
+            Circle()
+                .fill(group.color.color)
+                .frame(width: 8, height: 8)
+            if store.renamingGroupId == group.id {
+                TextField("Group name", text: $store.renameText)
+                    .textFieldStyle(.plain)
+                    .frame(width: 80)
+                    .focused($renameFieldFocused)
+                    .onSubmit {
+                        store.send(.renameGroup(id: group.id, name: store.renameText))
+                    }
+            } else {
+                Text(group.label)
+                    .font(.system(size: 12, weight: .medium))
+                    .lineLimit(1)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(group.color.color.opacity(0.15))
+        .clipShape(.rect(cornerRadius: 6))
+        .onTapGesture {
+            store.send(.toggleGroupCollapse(group.id))
+        }
+        .contextMenu {
+            Button("Rename") {
+                store.send(.startRenamingGroup(group.id))
+            }
+            Menu("Change Color") {
+                ForEach(GroupColor.allCases, id: \.self) { gc in
+                    Button {
+                        store.send(.changeGroupColor(id: group.id, color: gc))
+                    } label: {
+                        Label(gc.rawValue.capitalized, systemImage: "circle.fill")
+                            .foregroundStyle(gc.color)
+                    }
+                }
+            }
+            Divider()
+            Button("Ungroup All") {
+                store.send(.ungroupAll(group.id))
+            }
+            Button("Close Group", role: .destructive) {
+                store.send(.closeGroup(group.id))
+            }
+        }
+    }
+
+    private func ungroupedTabButton(_ tab: BrowserTab) -> some View {
+        tabButtonContent(tab)
+            .contextMenu {
+                Button("Add to New Group") {
+                    store.send(.createGroup(from: tab.id))
+                }
+                if !store.tabGroups.isEmpty {
+                    Menu("Add to Group") {
+                        ForEach(store.tabGroups) { group in
+                            Button(group.label) {
+                                store.send(.addTabToGroup(tabId: tab.id, groupId: group.id))
+                            }
+                        }
+                    }
+                }
+                Divider()
+                Button("Close Tab", role: .destructive) {
+                    store.send(.closeTab(tab.id))
+                }
+            }
+    }
+
+    private func groupedTabButton(_ tab: BrowserTab, group: TabGroup) -> some View {
+        tabButtonContent(tab, groupColor: group.color)
+            .contextMenu {
+                Button("Remove from Group") {
+                    store.send(.removeTabFromGroup(tab.id))
+                }
+                Divider()
+                Button("Close Tab", role: .destructive) {
+                    store.send(.closeTab(tab.id))
+                }
+            }
+    }
+
+    private func tabButtonContent(_ tab: BrowserTab, groupColor: GroupColor? = nil) -> some View {
+        let isSelected = tab.id == store.selectedId
         return HStack(spacing: 6) {
+            if let gc = groupColor {
+                RoundedRectangle(cornerRadius: 1)
+                    .fill(gc.color)
+                    .frame(width: 3)
+            }
             Text(tab.displayTitle)
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .frame(maxWidth: 150)
-            Button(action: { closeTab(tab) }) {
+            Button(action: { store.send(.closeTab(tab.id)) }) {
                 Image(systemName: "xmark.circle.fill")
                     .font(.system(size: 12))
-                    .foregroundColor(isSelected ? .primary : .secondary)
+                    .foregroundStyle(isSelected ? .primary : .secondary)
             }
             .buttonStyle(.plain)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .background(isSelected ? Color(nsColor: .selectedContentBackgroundColor) : Color.clear)
-        .cornerRadius(6)
+        .clipShape(.rect(cornerRadius: 6))
         .onTapGesture {
-            selectedTabId = tab.id
+            store.send(.selectTab(tab.id))
         }
     }
 
+    // MARK: - Content Area
+
     private var contentArea: some View {
         ZStack(alignment: .topLeading) {
-            ForEach(tabs) { tab in
+            ForEach(store.allTabs) { tab in
                 WebView(
                     tab: tab,
-                    isActive: tab.id == selectedId,
+                    isActive: tab.id == store.selectedId,
+                    send: { store.send($0) },
                     onRegisterWebView: { view in
                         if let w = view {
                             currentWebView = w
                         }
-                    },
-                    onLoadURL: { url in
-                        DispatchQueue.main.async {
-                            if tab.id == selectedId {
-                                urlBarText = url.absoluteString
-                            }
-                        }
                     }
                 )
-                .opacity(tab.id == selectedId ? 1 : 0)
-                .allowsHitTesting(tab.id == selectedId)
-                .zIndex(tab.id == selectedId ? 1 : 0)
+                .opacity(tab.id == store.selectedId ? 1 : 0)
+                .allowsHitTesting(tab.id == store.selectedId)
+                .zIndex(tab.id == store.selectedId ? 1 : 0)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-
-    private func addTab() {
-        let tab = BrowserTab()
-        tabs.append(tab)
-        selectedTabId = tab.id
-        urlBarText = ""
-    }
-
-    private func closeTab(_ tab: BrowserTab) {
-        tabs.removeAll { $0.id == tab.id }
-        if selectedTabId == tab.id {
-            selectedTabId = tabs.first?.id
-            if let t = tabs.first {
-                urlBarText = t.urlString
-            }
-        }
-        if tabs.isEmpty {
-            let newTab = BrowserTab()
-            tabs.append(newTab)
-            selectedTabId = newTab.id
-            urlBarText = ""
-        }
-    }
-
-    private func loadURL(_ input: String) {
-        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-
-        var url: URL?
-        if trimmed.contains(".") && !trimmed.contains(" ") {
-            var str = trimmed
-            if !str.hasPrefix("http://") && !str.hasPrefix("https://") {
-                str = "https://" + str
-            }
-            url = URL(string: str)
-        }
-        if url == nil {
-            let query = trimmed.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? trimmed
-            url = URL(string: "https://www.google.com/search?q=\(query)")
-        }
-
-        guard let u = url else { return }
-        selectedTab?.url = u
-        selectedTab?.suggestedURL = u.absoluteString
-        selectedTab?.requestedLoad = true
-        urlBarText = u.absoluteString
-    }
 }
 
 #Preview {
-    ContentView()
-        .frame(width: 900, height: 600)
+    ContentView(
+        store: Store(initialState: AppFeature.State()) {
+            AppFeature()
+        }
+    )
+    .frame(width: 900, height: 600)
 }

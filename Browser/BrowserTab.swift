@@ -1,18 +1,14 @@
 import Foundation
-import WebKit
 
-/// Represents a single browser tab: identity, URL, title, and navigation state.
-/// The web engine (WKWebView) is owned by the UI layer and updates this model via delegate callbacks.
-final class BrowserTab: Identifiable, ObservableObject {
+struct BrowserTab: Equatable, Identifiable {
     let id: UUID
-    @Published var url: URL?
-    @Published var title: String
-    @Published var isLoading: Bool
-    @Published var canGoBack: Bool
-    @Published var canGoForward: Bool
-    @Published var suggestedURL: String  // For URL bar display / pending load
-    /// Set when user submits URL bar; cleared when we start the load. Allows reloading same URL.
-    @Published var requestedLoad: Bool
+    var url: URL?
+    var title: String
+    var isLoading: Bool
+    var canGoBack: Bool
+    var canGoForward: Bool
+    var suggestedURL: String
+    var requestedLoad: Bool
 
     init(
         id: UUID = UUID(),
