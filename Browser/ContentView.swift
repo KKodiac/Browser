@@ -131,34 +131,36 @@ struct ContentView: View {
     }
 
     private func groupHeader(_ group: TabGroup) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: group.isCollapsed ? "chevron.right" : "chevron.down")
-                .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(.secondary)
-            Circle()
-                .fill(group.color.color)
-                .frame(width: 8, height: 8)
-            if store.renamingGroupId == group.id {
-                TextField("Group name", text: $store.renameText)
-                    .textFieldStyle(.plain)
-                    .frame(width: 80)
-                    .focused($renameFieldFocused)
-                    .onSubmit {
-                        store.send(.renameGroup(id: group.id, name: store.renameText))
-                    }
-            } else {
-                Text(group.label)
-                    .font(.system(size: 12, weight: .medium))
-                    .lineLimit(1)
-            }
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(group.color.color.opacity(0.15))
-        .clipShape(.rect(cornerRadius: 6))
-        .onTapGesture {
+        Button {
             store.send(.toggleGroupCollapse(group.id))
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: group.isCollapsed ? "chevron.right" : "chevron.down")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.secondary)
+                Circle()
+                    .fill(group.color.color)
+                    .frame(width: 8, height: 8)
+                if store.renamingGroupId == group.id {
+                    TextField("Group name", text: $store.renameText)
+                        .textFieldStyle(.plain)
+                        .frame(width: 80)
+                        .focused($renameFieldFocused)
+                        .onSubmit {
+                            store.send(.renameGroup(id: group.id, name: store.renameText))
+                        }
+                } else {
+                    Text(group.label)
+                        .font(.system(size: 12, weight: .medium))
+                        .lineLimit(1)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(group.color.color.opacity(0.15))
+            .clipShape(.rect(cornerRadius: 6))
         }
+        .buttonStyle(.plain)
         .contextMenu {
             Button("Rename") {
                 store.send(.startRenamingGroup(group.id))
@@ -220,29 +222,35 @@ struct ContentView: View {
 
     private func tabButtonContent(_ tab: BrowserTab, groupColor: GroupColor? = nil) -> some View {
         let isSelected = tab.id == store.selectedId
-        return HStack(spacing: 6) {
-            if let gc = groupColor {
-                RoundedRectangle(cornerRadius: 1)
-                    .fill(gc.color)
-                    .frame(width: 3)
+        return Button {
+            store.send(.selectTab(tab.id))
+        } label: {
+            HStack(spacing: 6) {
+                if let gc = groupColor {
+                    RoundedRectangle(cornerRadius: 1)
+                        .fill(gc.color)
+                        .frame(width: 3)
+                }
+                Text(tab.displayTitle)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: 150)
             }
-            Text(tab.displayTitle)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .frame(maxWidth: 150)
+            .padding(.leading, 10)
+            .padding(.trailing, 28)
+            .padding(.vertical, 6)
+        }
+        .buttonStyle(.plain)
+        .background(isSelected ? Color(nsColor: .selectedContentBackgroundColor) : Color.clear)
+        .clipShape(.rect(cornerRadius: 6))
+        .overlay(alignment: .trailing) {
             Button(action: { store.send(.closeTab(tab.id)) }) {
                 Image(systemName: "xmark.circle.fill")
                     .font(.system(size: 12))
                     .foregroundStyle(isSelected ? .primary : .secondary)
             }
             .buttonStyle(.plain)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(isSelected ? Color(nsColor: .selectedContentBackgroundColor) : Color.clear)
-        .clipShape(.rect(cornerRadius: 6))
-        .onTapGesture {
-            store.send(.selectTab(tab.id))
+            .padding(.trailing, 6)
         }
     }
 
