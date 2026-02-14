@@ -2,6 +2,23 @@ import Foundation
 import IdentifiedCollections
 import SwiftUI
 
+enum AccentColor: String, CaseIterable, Equatable {
+    case blue, purple, pink, orange, teal, green, red, white
+
+    var color: Color {
+        switch self {
+        case .blue: .blue
+        case .purple: .purple
+        case .pink: .pink
+        case .orange: .orange
+        case .teal: .teal
+        case .green: .green
+        case .red: .red
+        case .white: .white
+        }
+    }
+}
+
 enum GroupColor: String, CaseIterable, Equatable {
     case red, orange, yellow, green, blue, purple, pink, gray
 

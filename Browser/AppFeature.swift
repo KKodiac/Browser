@@ -14,6 +14,7 @@ struct AppFeature {
         var renameText: String = ""
         var focusURLBarTrigger: Int = 0
         var focusRenameFieldTrigger: Int = 0
+        var accentColor: AccentColor = .blue
 
         var allTabs: IdentifiedArrayOf<BrowserTab> {
             var result = ungroupedTabs
@@ -58,6 +59,10 @@ struct AppFeature {
         case changeGroupColor(id: UUID, color: GroupColor)
         case closeGroup(UUID)
         case ungroupAll(UUID)
+        // Tab reorder
+        case moveTab(id: UUID, beforeTab: UUID?)
+        // Accent color
+        case setAccentColor(AccentColor)
         // WebView delegate callbacks
         case webViewNavigationStarted(tabId: UUID)
         case webViewNavigationFinished(tabId: UUID, url: URL?, title: String?, canGoBack: Bool, canGoForward: Bool)
@@ -241,6 +246,51 @@ struct AppFeature {
                 guard let group = state.tabGroups[id: groupId] else { return .none }
                 state.ungroupedTabs.append(contentsOf: group.tabs)
                 state.tabGroups.remove(id: groupId)
+                return .none
+
+            // MARK: - Tab Reorder
+
+            case let .moveTab(id, beforeTab):
+                // 1. Find and remove the tab from its current location
+                var tab: BrowserTab?
+                if let t = state.ungroupedTabs[id: id] {
+                    tab = t
+                    state.ungroupedTabs.remove(id: id)
+                } else {
+                    for groupIndex in state.tabGroups.indices {
+                        if let t = state.tabGroups[groupIndex].tabs[id: id] {
+                            tab = t
+                            state.tabGroups[groupIndex].tabs.remove(id: id)
+                            break
+                        }
+                    }
+                }
+                guard let tab else { return .none }
+
+                // 2. Clean up empty groups
+                state.tabGroups.removeAll { $0.tabs.isEmpty }
+
+                // 3. Insert before beforeTab, or append to ungrouped if nil
+                if let beforeTab {
+                    if let idx = state.ungroupedTabs.index(id: beforeTab) {
+                        state.ungroupedTabs.insert(tab, at: idx)
+                    } else {
+                        for groupIndex in state.tabGroups.indices {
+                            if let idx = state.tabGroups[groupIndex].tabs.index(id: beforeTab) {
+                                state.tabGroups[groupIndex].tabs.insert(tab, at: idx)
+                                break
+                            }
+                        }
+                    }
+                } else {
+                    state.ungroupedTabs.append(tab)
+                }
+                return .none
+
+            // MARK: - Accent Color
+
+            case let .setAccentColor(color):
+                state.accentColor = color
                 return .none
 
             // MARK: - WebView Delegate Callbacks

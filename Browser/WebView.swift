@@ -11,6 +11,7 @@ struct WebView: NSViewRepresentable {
         let config = WKWebViewConfiguration()
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
+        webView.uiDelegate = context.coordinator
         webView.allowsBackForwardNavigationGestures = true
         context.coordinator.webView = webView
         return webView
@@ -45,7 +46,7 @@ struct WebView: NSViewRepresentable {
         Coordinator(tab: tab, send: send, onRegisterWebView: onRegisterWebView)
     }
 
-    class Coordinator: NSObject, WKNavigationDelegate {
+    class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
         var tab: BrowserTab
         var webView: WKWebView?
         var send: (AppFeature.Action) -> Void
@@ -85,6 +86,35 @@ struct WebView: NSViewRepresentable {
             if (error as NSError).code == URLError.Code.cancelled.rawValue { return }
             lastLoadedURL = nil
             send(.webViewProvisionalNavigationFailed(tabId: tab.id))
+        }
+
+        // MARK: - WKUIDelegate
+
+        func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
+            let alert = NSAlert()
+            alert.messageText = message
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+            completionHandler()
+        }
+
+        func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> Void) {
+            let alert = NSAlert()
+            alert.messageText = message
+            alert.addButton(withTitle: "OK")
+            alert.addButton(withTitle: "Cancel")
+            completionHandler(alert.runModal() == .alertFirstButtonReturn)
+        }
+
+        func webView(_ webView: WKWebView, runJavaScriptTextInputPanelWithPrompt prompt: String, defaultText: String?, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (String?) -> Void) {
+            let alert = NSAlert()
+            alert.messageText = prompt
+            alert.addButton(withTitle: "OK")
+            alert.addButton(withTitle: "Cancel")
+            let textField = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+            textField.stringValue = defaultText ?? ""
+            alert.accessoryView = textField
+            completionHandler(alert.runModal() == .alertFirstButtonReturn ? textField.stringValue : nil)
         }
     }
 }

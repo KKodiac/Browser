@@ -17,18 +17,20 @@ let project = Project(
             name: "Browser",
             destinations: [.mac],
             product: .app,
-            bundleId: "com.browser.app",
+            bundleId: "com.kkodiac.browser",
             deploymentTargets: .macOS("14.0"),
             infoPlist: .file(path: "Browser/Info.plist"),
             sources: ["Browser/**/*.swift"],
             dependencies: [
                 .sdk(name: "AppKit", type: .framework),
                 .sdk(name: "WebKit", type: .framework),
+                .sdk(name: "AuthenticationServices", type: .framework),
                 .external(name: "ComposableArchitecture"),
             ],
             settings: .settings(
                 base: [
                     "CODE_SIGN_ENTITLEMENTS": "Browser/Browser.entitlements",
+                    "CODE_SIGN_IDENTITY": "Apple Development",
                     "ENABLE_PREVIEWS": "YES",
                     "SWIFT_VERSION": "5.0",
                 ]

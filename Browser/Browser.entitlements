@@ -6,5 +6,10 @@
 	<true/>
 	<key>com.apple.security.network.client</key>
 	<true/>
+	<key>com.apple.developer.web-browser</key>
+	<true/>
+	<!-- Add back after Apple approves the Web Browser Public Key Credential capability -->
+	<!-- <key>com.apple.developer.web-browser.public-key-credential</key>
+	<true/> -->
 </dict>
 </plist>
