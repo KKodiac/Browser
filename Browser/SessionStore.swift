@@ -15,14 +15,19 @@ enum SessionStore {
         return dir.appendingPathComponent("session.json")
     }
 
-    static func save(_ data: SessionData) {
-        guard let encoded = try? JSONEncoder().encode(data) else { return }
+    /// Saves one entry per normal window.
+    static func save(_ windows: [SessionData]) {
+        guard let encoded = try? JSONEncoder().encode(windows) else { return }
         try? encoded.write(to: fileURL, options: .atomic)
     }
 
-    static func load() -> SessionData? {
-        guard let data = try? Data(contentsOf: fileURL),
-              let decoded = try? JSONDecoder().decode(SessionData.self, from: data) else { return nil }
-        return decoded
+    /// Loads the saved windows, skipping empty ones. Also reads the older single-window format.
+    static func load() -> [SessionData] {
+        guard let data = try? Data(contentsOf: fileURL) else { return [] }
+        let decoder = JSONDecoder()
+        let windows = (try? decoder.decode([SessionData].self, from: data))
+            ?? (try? decoder.decode(SessionData.self, from: data)).map { [$0] }
+            ?? []
+        return windows.filter { !$0.ungroupedTabs.isEmpty || !$0.tabGroups.isEmpty }
     }
 }

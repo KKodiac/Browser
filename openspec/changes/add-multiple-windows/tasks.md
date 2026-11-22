@@ -17,9 +17,9 @@
 
 ## 4. Cross-Window Drag
 
-- [x] 4.1 Extend NSItemProvider payload to include tab URL and title (not just UUID) for cross-window transfer
+- [x] 4.1 Look up the dragged tab's source window through `WindowRegistry` (the drag payload stays the tab UUID; tabs only move between windows of the same kind, normal or private)
 - [x] 4.2 Update drop handler to detect cross-window drops (UUID not found in local store) and create a new BrowserTab from the serialized data
-- [x] 4.3 Implement source-window tab removal after successful cross-window transfer via pasteboard notification or completion handler
+- [x] 4.3 Remove the tab from the source window (`detachTab`) when the drop lands in another window
 - [x] 4.4 Handle edge case: if moved tab was the last tab in source window, create a new empty tab in source
 - [x] 4.5 Handle edge case: if moved tab was the last tab in its group, delete the empty group in source window
 

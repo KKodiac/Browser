@@ -5,6 +5,9 @@ import WebKit
 
 struct ContentView: View {
     @Bindable var store: StoreOf<AppFeature>
+    var isPrivate: Bool = false
+    /// Ephemeral data store shared by a private window's tabs; nil for normal windows.
+    var dataStore: WKWebsiteDataStore? = nil
     @Environment(BookmarkStore.self) private var bookmarkStore
     @Environment(DownloadManager.self) private var downloadManager
     @Environment(HistoryStore.self) private var historyStore
@@ -12,6 +15,7 @@ struct ContentView: View {
     @State private var currentWebView: WKWebView?
     @State private var hoveredTabId: UUID?
     @State private var draggedTabId: UUID?
+    @State private var showPrivateBookmarkAlert = false
     @State private var showBookmarksSidebar = false
     @State private var showDownloadsPopover = false
     @State private var showHistoryPanel = false
@@ -38,6 +42,17 @@ struct ContentView: View {
                 performFind: { text, step in performFind(text, step: step) },
                 recordHistory: { if let tab = store.selectedTab { recordHistory(for: tab) } }
             ))
+            .alert("Bookmark this page?", isPresented: $showPrivateBookmarkAlert) {
+                Button("Add Bookmark") {
+                    if let tab = store.selectedTab, let url = tab.url {
+                        saveBookmark(for: tab, url: url)
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("You're in a private window. The bookmark is saved permanently and shows in normal windows too.")
+            }
+            .preferredColorScheme(isPrivate ? .dark : nil)
     }
 
     private var mainLayout: some View {
@@ -136,6 +151,7 @@ struct ContentView: View {
     }
 
     private func recordHistory(for tab: BrowserTab) {
+        guard !isPrivate else { return }
         guard let url = tab.url, url.scheme == "https" || url.scheme == "http" else { return }
         historyStore.addEntry(url: url, title: tab.title)
     }
@@ -145,18 +161,33 @@ struct ContentView: View {
         if bookmarkStore.isBookmarked(url: url) {
             showBookmarksSidebar = true
             editingBookmarkId = bookmarkStore.bookmark(for: url)?.id
+        } else if isPrivate {
+            showPrivateBookmarkAlert = true
         } else {
-            let title = tab.title.isEmpty || tab.title == "New Tab"
-                ? (url.host ?? url.absoluteString)
-                : tab.title
-            bookmarkStore.addBookmark(title: title, url: url)
+            saveBookmark(for: tab, url: url)
         }
+    }
+
+    private func saveBookmark(for tab: BrowserTab, url: URL) {
+        let title = tab.title.isEmpty || tab.title == "New Tab"
+            ? (url.host ?? url.absoluteString)
+            : tab.title
+        bookmarkStore.addBookmark(title: title, url: url)
     }
 
     // MARK: - URL Bar
 
     private var urlBar: some View {
         HStack(spacing: 10) {
+            if isPrivate {
+                Label("Private", systemImage: "eyeglasses")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.purple.opacity(0.6), in: Capsule())
+                    .help("Private window: history isn't saved, and cookies and site data are deleted when the window closes")
+            }
             HStack(spacing: 2) {
                 Button(action: { currentWebView?.goBack() }) {
                     Image(systemName: "chevron.left")
@@ -638,7 +669,8 @@ struct ContentView: View {
                         send: { store.send($0) },
                         onRegisterWebView: { _ in },
                         downloadManager: downloadManager,
-                        contentBlockingEnabled: contentBlockingEnabled
+                        contentBlockingEnabled: contentBlockingEnabled,
+                        dataStore: dataStore
                     )
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -667,7 +699,8 @@ struct ContentView: View {
                         }
                     },
                     downloadManager: downloadManager,
-                    contentBlockingEnabled: contentBlockingEnabled
+                    contentBlockingEnabled: contentBlockingEnabled,
+                    dataStore: dataStore
                 )
                 .opacity(tab.id == store.selectedId && tab.url != nil ? 1 : 0)
                 .allowsHitTesting(tab.id == store.selectedId)
@@ -704,7 +737,14 @@ struct ContentView: View {
         provider.loadObject(ofClass: NSString.self) { string, _ in
             if let uuidString = string as? String, let draggedId = UUID(uuidString: uuidString) {
                 DispatchQueue.main.async {
-                    store.send(.moveTab(id: draggedId, beforeTab: beforeTab))
+                    if store.allTabs[id: draggedId] != nil {
+                        store.send(.moveTab(id: draggedId, beforeTab: beforeTab))
+                    } else if let source = WindowRegistry.shared.store(owningTab: draggedId, isPrivate: isPrivate),
+                              let tab = source.allTabs[id: draggedId] {
+                        // Dragged from another window: the tab reloads here and leaves the other window.
+                        source.send(.detachTab(draggedId))
+                        store.send(.insertTab(tab, beforeTab: beforeTab))
+                    }
                     draggedTabId = nil
                 }
             }
