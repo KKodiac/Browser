@@ -35,7 +35,7 @@ struct ContentView: View {
                 showHistoryPanel: $showHistoryPanel,
                 showSplitView: $showSplitView,
                 addOrEditBookmark: addOrEditBookmark,
-                performFind: { text in performFind(text) },
+                performFind: { text, step in performFind(text, step: step) },
                 recordHistory: { if let tab = store.selectedTab { recordHistory(for: tab) } }
             ))
     }
@@ -66,22 +66,64 @@ struct ContentView: View {
         }
     }
 
-    private func performFind(_ text: String, forward: Bool = true) {
+    /// Searches the current page. `step` 0 starts a new search at the first match;
+    /// 1 / -1 move to the next / previous match. Matches are kept in `window.__browserFind`.
+    private func performFind(_ text: String, step: Int = 0) {
         guard let webView = currentWebView else { return }
         guard !text.isEmpty else {
             // Clear highlights
-            webView.evaluateJavaScript("window.getSelection().removeAllRanges()", completionHandler: nil)
+            webView.evaluateJavaScript("window.getSelection().removeAllRanges(); delete window.__browserFind;", completionHandler: nil)
             store.send(.updateFindResults(matchCount: 0, matchIndex: 0))
             return
         }
-        let js = "window.find('\(text.replacingOccurrences(of: "'", with: "\\'"))', false, \(!forward), true)"
-        webView.evaluateJavaScript(js) { result, _ in
-            let found = result as? Bool ?? false
-            // Simple match tracking - WebKit's window.find doesn't give total count easily
-            if found {
-                if store.findMatchCount == 0 {
-                    store.send(.updateFindResults(matchCount: 1, matchIndex: 0))
+        guard let data = try? JSONEncoder().encode(text),
+              let query = String(data: data, encoding: .utf8) else { return }
+        let js = """
+        (function(q, step) {
+          var s = window.__browserFind;
+          if (!s || s.q !== q || step === 0) {
+            var ranges = [];
+            if (document.body) {
+              var needle = q.toLowerCase();
+              var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, { acceptNode: function(n) {
+                var p = n.parentElement;
+                if (!p || /^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE)$/.test(p.tagName) || p.getClientRects().length === 0) {
+                  return NodeFilter.FILTER_REJECT;
                 }
+                return NodeFilter.FILTER_ACCEPT;
+              }});
+              var n;
+              while ((n = walker.nextNode())) {
+                var hay = n.data.toLowerCase();
+                if (hay.length !== n.data.length) { continue; }
+                var i = 0;
+                while ((i = hay.indexOf(needle, i)) !== -1) {
+                  var r = document.createRange();
+                  r.setStart(n, i);
+                  r.setEnd(n, i + needle.length);
+                  ranges.push(r);
+                  i += needle.length;
+                }
+              }
+            }
+            s = window.__browserFind = { q: q, ranges: ranges, index: 0 };
+          } else if (s.ranges.length > 0) {
+            s.index = (s.index + step + s.ranges.length) % s.ranges.length;
+          }
+          var sel = window.getSelection();
+          sel.removeAllRanges();
+          if (s.ranges.length === 0) { return [0, 0]; }
+          var range = s.ranges[s.index];
+          sel.addRange(range);
+          var el = range.startContainer.parentElement;
+          if (el) { el.scrollIntoView({ block: 'center', inline: 'nearest' }); }
+          return [s.ranges.length, s.index];
+        })(\(query), \(step))
+        """
+        webView.evaluateJavaScript(js) { result, _ in
+            let values = (result as? [NSNumber])?.map(\.intValue) ?? []
+            if values.count == 2 {
+                store.send(.updateFindResults(matchCount: values[0], matchIndex: values[1]))
             } else {
                 store.send(.updateFindResults(matchCount: 0, matchIndex: 0))
             }
@@ -714,7 +756,7 @@ private struct TriggerModifiers: ViewModifier {
     @Binding var showHistoryPanel: Bool
     @Binding var showSplitView: Bool
     var addOrEditBookmark: () -> Void
-    var performFind: (String) -> Void
+    var performFind: (String, Int) -> Void
     var recordHistory: () -> Void
 
     func body(content: Content) -> some View {
@@ -769,7 +811,7 @@ private struct TriggerModifiersB: ViewModifier {
     @Bindable var store: StoreOf<AppFeature>
     @Binding var showHistoryPanel: Bool
     @Binding var showSplitView: Bool
-    var performFind: (String) -> Void
+    var performFind: (String, Int) -> Void
     var recordHistory: () -> Void
 
     func body(content: Content) -> some View {
@@ -781,7 +823,10 @@ private struct TriggerModifiersB: ViewModifier {
                 showSplitView = store.splitTabId != nil
             }
             .onChange(of: store.findText) { _, newValue in
-                performFind(newValue)
+                performFind(newValue, 0)
+            }
+            .onChange(of: store.findNavigateTrigger) { _, _ in
+                performFind(store.findText, store.findNavigateStep)
             }
             .onChange(of: store.selectedTab?.url) { _, _ in
                 recordHistory()

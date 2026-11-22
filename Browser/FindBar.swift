@@ -16,6 +16,7 @@ struct FindBar: View {
                 .font(.system(size: 13))
                 .focused($isFocused)
                 .onSubmit { store.send(.findNext) }
+                .onExitCommand { store.send(.dismissFindBar) }
 
             if !store.findText.isEmpty {
                 Text(matchCountText)
