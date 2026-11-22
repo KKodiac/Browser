@@ -88,18 +88,19 @@ Features that would differentiate this browser rather than reach parity.
 Proposed positioning: **"a browser for people with too many tabs."**
 
 ### On-device AI (Foundation Models, macOS 26+, private, no server cost)
-- ⬜ **Ask this page:** summarize, answer questions, extract tables or steps
-- ⬜ **Tab triage:** cluster open tabs into suggested groups, name them, flag duplicates and stale tabs
+The ✅ AI features need macOS 26 and Apple Intelligence turned on; on older macOS their menu items are disabled.
+- ✅ **Ask this page:** ⇧⌘A side panel; summarize, key points, explain selection (#16)
+- ✅ **Tab triage:** ⌥⌘O Organize Tabs suggests groups and flags duplicate and stale tabs (#15)
 - ⬜ **Semantic history search:** find pages by meaning, not title
 - ⬜ **Smart new tab page:** suggest the next task from time of day and recent groups
 
 ### Workspaces
-- ⬜ **Workspaces:** a tab group becomes a saved workspace (tabs, split layout, notes) you can put away and restore
+- ✅ **Workspaces:** save (⌥⌘S), put away (⌥⌘W) and reopen a window's tabs and groups (#12). Split layout and notes not included yet
 - ⬜ **Ephemeral tabs:** auto-close after a set time unless pinned
 - ⬜ **Linked split view:** links clicked in one pane open in the other
 
 ### Built on the TCA design
-- ⬜ **Browsing timeline / undo:** scrub back through a session, undo closing a group
+- 🚧 **Browsing timeline / undo:** ⌥⌘Y Session Timeline restores snapshots taken every 5 minutes and before closing a window or group (#14). No scrubbing or undo yet
 - ⬜ **Shareable sessions:** export a workspace as a file or link
 - ⬜ **Automation:** record and replay actions as macros
 
@@ -139,7 +140,7 @@ Dia embeds Chromium. These are things it gets from Chromium or adds around it th
 
 ### Browser UI
 Dia has about 60 UI modules. These are the ones worth copying.
-- ⬜ 🟢 **Command bar:** one ⌘K bar for URLs, tabs, history, bookmarks and commands
+- ✅ 🟢 **Command bar:** one ⌘K bar for URLs, tabs, history, bookmarks and commands (#13)
 - ⬜ 🟢 **Shareable tab bundles:** save a set of tabs as a file (`.browsertabs`) that opens as a group
 - ⬜ 🟢 **Clean up tabs:** one action that closes or archives stale and duplicate tabs
 - ⬜ 🟢 **Recent tabs** list, including closed ones (builds on ⇧⌘T)
