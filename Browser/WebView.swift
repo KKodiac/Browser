@@ -8,9 +8,14 @@ struct WebView: NSViewRepresentable {
     var onRegisterWebView: (WKWebView?) -> Void
     var downloadManager: DownloadManager?
     var contentBlockingEnabled: Bool = false
+    /// Set for private windows: an ephemeral store shared by the window's tabs.
+    var dataStore: WKWebsiteDataStore?
 
     func makeNSView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
+        if let dataStore {
+            config.websiteDataStore = dataStore
+        }
         let webView = BrowserWKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
         webView.uiDelegate = context.coordinator

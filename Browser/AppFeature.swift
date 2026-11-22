@@ -93,6 +93,9 @@ struct AppFeature {
         case ungroupAll(UUID)
         // Tab reorder
         case moveTab(id: UUID, beforeTab: UUID?)
+        // Moving tabs between windows
+        case detachTab(UUID)
+        case insertTab(BrowserTab, beforeTab: UUID?)
         // Accent color
         case setAccentColor(AccentColor)
         // Session
@@ -159,24 +162,7 @@ struct AppFeature {
                         state.closedTabs.removeFirst()
                     }
                 }
-                state.ungroupedTabs.remove(id: tabId)
-                for index in state.tabGroups.indices {
-                    state.tabGroups[index].tabs.remove(id: tabId)
-                }
-                state.tabGroups.removeAll { $0.tabs.isEmpty }
-
-                if state.selectedTabId == tabId {
-                    state.selectedTabId = state.allTabs.first?.id
-                    if let t = state.allTabs.first {
-                        state.urlBarText = t.urlString
-                    }
-                }
-                if state.allTabs.isEmpty {
-                    let newTab = BrowserTab()
-                    state.ungroupedTabs.append(newTab)
-                    state.selectedTabId = newTab.id
-                    state.urlBarText = ""
-                }
+                removeTab(&state, id: tabId)
                 return .none
 
             case let .selectTab(tabId):
@@ -374,26 +360,25 @@ struct AppFeature {
                 state.tabGroups.removeAll { $0.tabs.isEmpty }
 
                 // 3. Insert before beforeTab, or append to ungrouped if nil
-                if let beforeTab {
-                    if let idx = state.ungroupedTabs.index(id: beforeTab) {
-                        state.ungroupedTabs.insert(tab, at: idx)
-                    } else {
-                        for groupIndex in state.tabGroups.indices {
-                            if let idx = state.tabGroups[groupIndex].tabs.index(id: beforeTab) {
-                                state.tabGroups[groupIndex].tabs.insert(tab, at: idx)
-                                break
-                            }
-                        }
-                    }
-                } else {
-                    state.ungroupedTabs.append(tab)
-                }
+                insert(tab, before: beforeTab, into: &state)
+                return .none
+
+            case let .detachTab(tabId):
+                // The tab moves to another window, so it isn't added to recently closed tabs.
+                removeTab(&state, id: tabId)
+                return .none
+
+            case let .insertTab(tab, beforeTab):
+                insert(tab, before: beforeTab, into: &state)
+                state.selectedTabId = tab.id
+                state.urlBarText = tab.urlString
                 return .none
 
             // MARK: - Accent Color
 
             case let .setAccentColor(color):
                 state.accentColor = color
+                UserDefaults.standard.set(color.rawValue, forKey: "accentColor")
                 return .none
 
             case let .restoreSession(data):
@@ -560,6 +545,45 @@ struct AppFeature {
                 return .none
             }
         }
+    }
+
+    /// Removes a tab, drops groups it leaves empty, fixes the selection, and keeps at least one tab open.
+    private func removeTab(_ state: inout State, id tabId: UUID) {
+        state.ungroupedTabs.remove(id: tabId)
+        for index in state.tabGroups.indices {
+            state.tabGroups[index].tabs.remove(id: tabId)
+        }
+        state.tabGroups.removeAll { $0.tabs.isEmpty }
+
+        if state.selectedTabId == tabId {
+            state.selectedTabId = state.allTabs.first?.id
+            if let t = state.allTabs.first {
+                state.urlBarText = t.urlString
+            }
+        }
+        if state.allTabs.isEmpty {
+            let newTab = BrowserTab()
+            state.ungroupedTabs.append(newTab)
+            state.selectedTabId = newTab.id
+            state.urlBarText = ""
+        }
+    }
+
+    /// Inserts a tab before `beforeTab` (in whichever group holds it), or appends it to the ungrouped tabs.
+    private func insert(_ tab: BrowserTab, before beforeTab: UUID?, into state: inout State) {
+        if let beforeTab {
+            if let idx = state.ungroupedTabs.index(id: beforeTab) {
+                state.ungroupedTabs.insert(tab, at: idx)
+                return
+            }
+            for groupIndex in state.tabGroups.indices {
+                if let idx = state.tabGroups[groupIndex].tabs.index(id: beforeTab) {
+                    state.tabGroups[groupIndex].tabs.insert(tab, at: idx)
+                    return
+                }
+            }
+        }
+        state.ungroupedTabs.append(tab)
     }
 
     private func updateTab(_ state: inout State, id: UUID, _ update: (inout BrowserTab) -> Void) {
