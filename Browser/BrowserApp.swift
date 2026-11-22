@@ -29,6 +29,37 @@ struct BrowserApp: App {
                 }
                 .keyboardShortcut("t", modifiers: .command)
             }
+            CommandGroup(replacing: .saveItem) {
+                Button("Close Tab") {
+                    store.send(.closeSelectedTab)
+                }
+                .keyboardShortcut("w", modifiers: .command)
+                Button("Reopen Closed Tab") {
+                    store.send(.reopenClosedTab)
+                }
+                .keyboardShortcut("t", modifiers: [.command, .shift])
+            }
+            CommandMenu("Tab") {
+                Button("Select Next Tab") {
+                    store.send(.selectNextTab)
+                }
+                .keyboardShortcut(.tab, modifiers: .control)
+                Button("Select Previous Tab") {
+                    store.send(.selectPreviousTab)
+                }
+                .keyboardShortcut(.tab, modifiers: [.control, .shift])
+                Divider()
+                ForEach(1..<9) { n in
+                    Button("Select Tab \(n)") {
+                        store.send(.selectTabAtIndex(n - 1))
+                    }
+                    .keyboardShortcut(KeyEquivalent(Character("\(n)")), modifiers: .command)
+                }
+                Button("Select Last Tab") {
+                    store.send(.selectLastTab)
+                }
+                .keyboardShortcut("9", modifiers: .command)
+            }
             CommandMenu("Navigation") {
                 Button("Back") {
                     store.send(.goBack)
