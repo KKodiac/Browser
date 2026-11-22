@@ -118,3 +118,68 @@ Proposed positioning: **"a browser for people with too many tabs."**
 1. AI tab triage
 2. Workspaces you can put away
 3. Browsing timeline
+
+## 5. Ideas from Dia
+
+Feature ideas taken from what's inside the Dia 1.58.1 app bundle (looked at on 2026-11-23). They're adapted for this browser, which uses WebKit and aims to keep AI on the device. Items already listed in section 4 aren't repeated.
+
+Fit: 🟢 works with WebKit and on-device AI · 🟡 needs extra platform work · 🔴 needs a cloud service or account
+
+### Engine & platform
+Dia embeds Chromium. These are things it gets from Chromium or adds around it that we'd build on WebKit.
+- ⬜ 🟡 **Web extensions:** support Safari-style web extensions through WebKit's extension API (macOS 15.4+)
+- ⬜ 🟢 **Picture-in-Picture** for web video
+- ⬜ 🟡 **Cast to TV** (Chromecast/AirPlay device picker)
+- ⬜ 🟢 **Import from other browsers:** profiles, bookmarks, history, logins from Safari and Chrome
+- ⬜ 🟢 **Open local files:** HTML, PDF and text files open in a tab
+- ⬜ 🟢 **AppleScript support:** a scripting dictionary for tabs and windows
+- ⬜ 🟢 **Sign-in sheets for other apps:** be the browser macOS uses when other apps open login windows
+- ⬜ 🟡 **Auto-update** (Sparkle) and **crash reporting**
+- ⬜ 🟢 **Dock icon badge**, e.g. active downloads
+
+### Browser UI
+Dia has about 60 UI modules. These are the ones worth copying.
+- ⬜ 🟢 **Command bar:** one ⌘K bar for URLs, tabs, history, bookmarks and commands
+- ⬜ 🟢 **Shareable tab bundles:** save a set of tabs as a file (`.browsertabs`) that opens as a group
+- ⬜ 🟢 **Clean up tabs:** one action that closes or archives stale and duplicate tabs
+- ⬜ 🟢 **Recent tabs** list, including closed ones (builds on ⇧⌘T)
+- ⬜ 🟢 **Custom tab icons:** pick an emoji or symbol for a tab or group
+- ⬜ 🟢 **Window themes:** per-window tint and theme beyond accent color
+- ⬜ 🟢 **Swipe navigation:** trackpad swipes between tabs, with visual feedback
+- ⬜ 🟢 **Calendar preview:** show the next meeting from the system calendar (EventKit) on the new tab page
+- ⬜ 🟢 **First-run onboarding** and a short tour of shortcuts
+- ⬜ 🟢 **Privacy control for history search:** exclude sites or clear by range
+
+### On-device ML
+Dia ships Apple's MLX framework, transformer models and a local classifier.
+- ⬜ 🟢 **Page classifier:** tag pages by topic or type (docs, shopping, video) to drive tab grouping and clean-up
+- ⬜ 🟢 **Page embeddings** stored locally, powering semantic history and "related tabs"
+- ⬜ 🟢 **Dictation** into the assistant (Speech framework)
+
+### Assistant panel
+Dia's chat is a bundled web app shown in a side panel.
+- ⬜ 🟢 **Side panel chat** with the current page (or several selected tabs) as context
+- ⬜ 🟢 **Chat history** saved per workspace
+- ⬜ 🔴 **Model choice:** on-device by default, with an optional cloud model the user brings
+- ⬜ 🟢 **"Ask on page" quick action:** select text, then ask
+
+### Agent and tools
+Dia runs a separate agent process that is sandboxed with a deny-by-default profile and has about 110 browser and app tools.
+- ⬜ 🟢 **Browser tools for the assistant:** read, open, close and group tabs; read the page; save as PDF; export a file
+- ⬜ 🟡 **Browse for me:** the assistant clicks and fills in forms on a page step by step, with the user approving each action
+- ⬜ 🟢 **Scheduled prompts:** run a saved prompt daily, e.g. "summarize these 5 sites every morning"
+- ⬜ 🟢 **Task notes:** a scratch note attached to a task or workspace that the assistant can write to
+- ⬜ 🟢 **Generated documents:** the assistant writes a doc or slides and saves it as a file you can reopen
+- ⬜ 🟡 **Sandboxed agent process:** run the agent outside the app process under a deny-by-default macOS sandbox
+
+### Skills & proactive agents
+Dia has about 45 agents and 10 skills (morning brief, meeting prep, task lists).
+- ⬜ 🟢 **Skills:** reusable saved prompts with names, shared across workspaces
+- ⬜ 🟢 **Morning brief:** a summary of pinned sites and calendar on the first new tab of the day
+- ⬜ 🟢 **Meeting prep:** before a calendar event, gather the tabs, history and notes related to it
+- ⬜ 🟢 **Suggested next tasks** from open tabs and recent activity, all on device
+
+### Integrations
+Dia's agent connects to Slack, Notion, Linear, Figma, Google, Salesforce and others.
+- ⬜ 🟡 **MCP client:** let the assistant use MCP servers the user configures, instead of building each integration
+- ⬜ 🔴 **Built-in connectors** for Slack, Notion and Linear, only if MCP isn't enough
