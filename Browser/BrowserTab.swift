@@ -1,6 +1,6 @@
 import Foundation
 
-struct BrowserTab: Equatable, Identifiable {
+struct BrowserTab: Equatable, Identifiable, Codable {
     let id: UUID
     var url: URL?
     var title: String
@@ -9,6 +9,9 @@ struct BrowserTab: Equatable, Identifiable {
     var canGoForward: Bool
     var suggestedURL: String
     var requestedLoad: Bool
+    var isPinned: Bool
+    var zoomLevel: Double
+    var faviconURL: URL?
 
     init(
         id: UUID = UUID(),
@@ -18,7 +21,10 @@ struct BrowserTab: Equatable, Identifiable {
         canGoBack: Bool = false,
         canGoForward: Bool = false,
         suggestedURL: String = "",
-        requestedLoad: Bool = false
+        requestedLoad: Bool = false,
+        isPinned: Bool = false,
+        zoomLevel: Double = 1.0,
+        faviconURL: URL? = nil
     ) {
         self.id = id
         self.url = url
@@ -28,6 +34,29 @@ struct BrowserTab: Equatable, Identifiable {
         self.canGoForward = canGoForward
         self.suggestedURL = suggestedURL
         self.requestedLoad = requestedLoad
+        self.isPinned = isPinned
+        self.zoomLevel = zoomLevel
+        self.faviconURL = faviconURL
+    }
+
+    // Exclude transient properties from persistence
+    enum CodingKeys: String, CodingKey {
+        case id, url, title, suggestedURL, isPinned, zoomLevel, faviconURL
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        url = try c.decodeIfPresent(URL.self, forKey: .url)
+        title = try c.decode(String.self, forKey: .title)
+        suggestedURL = try c.decode(String.self, forKey: .suggestedURL)
+        isPinned = try c.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false
+        zoomLevel = try c.decodeIfPresent(Double.self, forKey: .zoomLevel) ?? 1.0
+        faviconURL = try c.decodeIfPresent(URL.self, forKey: .faviconURL)
+        isLoading = false
+        canGoBack = false
+        canGoForward = false
+        requestedLoad = false
     }
 
     var displayTitle: String {

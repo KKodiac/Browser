@@ -2,7 +2,7 @@ import Foundation
 import IdentifiedCollections
 import SwiftUI
 
-enum AccentColor: String, CaseIterable, Equatable {
+enum AccentColor: String, CaseIterable, Equatable, Codable {
     case blue, purple, pink, orange, teal, green, red, white
 
     var color: Color {
@@ -19,7 +19,7 @@ enum AccentColor: String, CaseIterable, Equatable {
     }
 }
 
-enum GroupColor: String, CaseIterable, Equatable {
+enum GroupColor: String, CaseIterable, Equatable, Codable {
     case red, orange, yellow, green, blue, purple, pink, gray
 
     var color: Color {
@@ -36,7 +36,7 @@ enum GroupColor: String, CaseIterable, Equatable {
     }
 }
 
-struct TabGroup: Equatable, Identifiable {
+struct TabGroup: Equatable, Identifiable, Codable {
     let id: UUID
     var label: String
     var color: GroupColor

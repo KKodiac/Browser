@@ -15,6 +15,20 @@ struct AppFeature {
         var focusURLBarTrigger: Int = 0
         var focusRenameFieldTrigger: Int = 0
         var accentColor: AccentColor = .blue
+        // Triggers (bridge TCA actions → local @State in ContentView)
+        var addBookmarkTrigger: Int = 0
+        var toggleBookmarksSidebarTrigger: Int = 0
+        var toggleDownloadsPopoverTrigger: Int = 0
+        var toggleHistoryPanelTrigger: Int = 0
+        var toggleFindBarTrigger: Int = 0
+        var toggleSplitViewTrigger: Int = 0
+        // Find in page
+        var findText: String = ""
+        var findMatchCount: Int = 0
+        var findMatchIndex: Int = 0
+        var showFindBar: Bool = false
+        // Split view
+        var splitTabId: UUID?
 
         var allTabs: IdentifiedArrayOf<BrowserTab> {
             var result = ungroupedTabs
@@ -63,6 +77,31 @@ struct AppFeature {
         case moveTab(id: UUID, beforeTab: UUID?)
         // Accent color
         case setAccentColor(AccentColor)
+        // Session
+        case restoreSession(SessionData)
+        // Bookmarks (menu commands)
+        case addBookmark
+        case toggleBookmarksSidebar
+        // Downloads
+        case toggleDownloadsPopover
+        // History
+        case toggleHistoryPanel
+        // Find in page
+        case toggleFindBar
+        case findNext
+        case findPrevious
+        case dismissFindBar
+        case updateFindResults(matchCount: Int, matchIndex: Int)
+        // Tab pinning
+        case togglePinTab(UUID)
+        // Zoom
+        case zoomIn
+        case zoomOut
+        case resetZoom
+        // Split view
+        case toggleSplitView
+        // Favicon
+        case updateFavicon(tabId: UUID, faviconURL: URL?)
         // WebView delegate callbacks
         case webViewNavigationStarted(tabId: UUID)
         case webViewNavigationFinished(tabId: UUID, url: URL?, title: String?, canGoBack: Bool, canGoForward: Bool)
@@ -137,8 +176,10 @@ struct AppFeature {
                     url = URL(string: str)
                 }
                 if url == nil {
+                    let engineRaw = UserDefaults.standard.string(forKey: "searchEngine") ?? SearchEngine.google.rawValue
+                    let engine = SearchEngine(rawValue: engineRaw) ?? .google
                     let query = trimmed.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? trimmed
-                    url = URL(string: "https://www.google.com/search?q=\(query)")
+                    url = URL(string: "\(engine.searchURLPrefix)\(query)")
                 }
 
                 guard let u = url else { return .none }
@@ -291,6 +332,124 @@ struct AppFeature {
 
             case let .setAccentColor(color):
                 state.accentColor = color
+                return .none
+
+            case let .restoreSession(data):
+                state.ungroupedTabs = IdentifiedArrayOf(uniqueElements: data.ungroupedTabs)
+                state.tabGroups = IdentifiedArrayOf(uniqueElements: data.tabGroups)
+                state.accentColor = data.accentColor
+                if let selectedId = data.selectedTabId, state.allTabs[id: selectedId] != nil {
+                    state.selectedTabId = selectedId
+                } else {
+                    state.selectedTabId = state.allTabs.first?.id
+                }
+                if let tab = state.selectedTab {
+                    state.urlBarText = tab.urlString
+                }
+                if state.allTabs.isEmpty {
+                    let newTab = BrowserTab()
+                    state.ungroupedTabs.append(newTab)
+                    state.selectedTabId = newTab.id
+                    state.urlBarText = ""
+                }
+                return .none
+
+            // MARK: - Bookmarks
+
+            case .addBookmark:
+                state.addBookmarkTrigger += 1
+                return .none
+
+            case .toggleBookmarksSidebar:
+                state.toggleBookmarksSidebarTrigger += 1
+                return .none
+
+            case .toggleDownloadsPopover:
+                state.toggleDownloadsPopoverTrigger += 1
+                return .none
+
+            // MARK: - History
+
+            case .toggleHistoryPanel:
+                state.toggleHistoryPanelTrigger += 1
+                return .none
+
+            // MARK: - Find in Page
+
+            case .toggleFindBar:
+                state.showFindBar.toggle()
+                if !state.showFindBar {
+                    state.findText = ""
+                    state.findMatchCount = 0
+                    state.findMatchIndex = 0
+                }
+                state.toggleFindBarTrigger += 1
+                return .none
+
+            case .findNext:
+                if state.findMatchCount > 0 {
+                    state.findMatchIndex = (state.findMatchIndex + 1) % state.findMatchCount
+                }
+                return .none
+
+            case .findPrevious:
+                if state.findMatchCount > 0 {
+                    state.findMatchIndex = (state.findMatchIndex - 1 + state.findMatchCount) % state.findMatchCount
+                }
+                return .none
+
+            case .dismissFindBar:
+                state.showFindBar = false
+                state.findText = ""
+                state.findMatchCount = 0
+                state.findMatchIndex = 0
+                return .none
+
+            case let .updateFindResults(matchCount, matchIndex):
+                state.findMatchCount = matchCount
+                state.findMatchIndex = matchIndex
+                return .none
+
+            // MARK: - Tab Pinning
+
+            case let .togglePinTab(tabId):
+                updateTab(&state, id: tabId) { $0.isPinned.toggle() }
+                return .none
+
+            // MARK: - Zoom
+
+            case .zoomIn:
+                let id = state.selectedId
+                updateTab(&state, id: id) { $0.zoomLevel = min($0.zoomLevel + 0.1, 3.0) }
+                return .none
+
+            case .zoomOut:
+                let id = state.selectedId
+                updateTab(&state, id: id) { $0.zoomLevel = max($0.zoomLevel - 0.1, 0.3) }
+                return .none
+
+            case .resetZoom:
+                let id = state.selectedId
+                updateTab(&state, id: id) { $0.zoomLevel = 1.0 }
+                return .none
+
+            // MARK: - Split View
+
+            case .toggleSplitView:
+                if state.splitTabId != nil {
+                    state.splitTabId = nil
+                } else {
+                    // Pick first tab that isn't the selected one
+                    let other = state.allTabs.first { $0.id != state.selectedId }
+                    state.splitTabId = other?.id
+                }
+                state.toggleSplitViewTrigger += 1
+                return .none
+
+            // MARK: - Favicon
+
+            case let .updateFavicon(tabId, faviconURL):
+                updateTab(&state, id: tabId) { $0.faviconURL = faviconURL }
                 return .none
 
             // MARK: - WebView Delegate Callbacks

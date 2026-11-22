@@ -5,25 +5,111 @@ import WebKit
 
 struct ContentView: View {
     @Bindable var store: StoreOf<AppFeature>
+    @Environment(BookmarkStore.self) private var bookmarkStore
+    @Environment(DownloadManager.self) private var downloadManager
+    @Environment(HistoryStore.self) private var historyStore
+    @AppStorage("contentBlockingEnabled") private var contentBlockingEnabled: Bool = true
     @State private var currentWebView: WKWebView?
+    @State private var splitWebView: WKWebView?
     @State private var hoveredTabId: UUID?
     @State private var draggedTabId: UUID?
+    @State private var showBookmarksSidebar = false
+    @State private var showDownloadsPopover = false
+    @State private var showHistoryPanel = false
+    @State private var showSplitView = false
+    @State private var editingBookmarkId: UUID?
     @FocusState private var urlBarFocused: Bool
     @FocusState private var renameFieldFocused: Bool
 
     var body: some View {
-        contentArea
-            .safeAreaInset(edge: .top, spacing: 0) { tabBar }
-            .safeAreaInset(edge: .bottom, spacing: 0) { urlBar }
+        mainLayout
             .onAppear {
                 store.send(.onAppear)
+                ContentBlockerManager.shared.compileRules()
             }
-            .onChange(of: store.focusURLBarTrigger) { _, _ in
-                urlBarFocused = true
+            .modifier(TriggerModifiers(
+                store: store,
+                urlBarFocused: $urlBarFocused,
+                renameFieldFocused: $renameFieldFocused,
+                showBookmarksSidebar: $showBookmarksSidebar,
+                showDownloadsPopover: $showDownloadsPopover,
+                showHistoryPanel: $showHistoryPanel,
+                showSplitView: $showSplitView,
+                addOrEditBookmark: addOrEditBookmark,
+                performFind: { text in performFind(text) },
+                recordHistory: { if let tab = store.selectedTab { recordHistory(for: tab) } }
+            ))
+    }
+
+    private var mainLayout: some View {
+        HStack(spacing: 0) {
+            if showBookmarksSidebar {
+                BookmarksSidebar(onSelectBookmark: openBookmarkURL)
+                Divider()
             }
-            .onChange(of: store.focusRenameFieldTrigger) { _, _ in
-                renameFieldFocused = true
+            if showHistoryPanel {
+                HistoryPanel(
+                    onSelectEntry: openBookmarkURL,
+                    onDismiss: { showHistoryPanel = false }
+                )
+                Divider()
             }
+            VStack(spacing: 0) {
+                contentArea
+                    .safeAreaInset(edge: .top, spacing: 0) { tabBar }
+                    .safeAreaInset(edge: .bottom, spacing: 0) { urlBar }
+                    .overlay(alignment: .topTrailing) {
+                        if store.showFindBar {
+                            FindBar(store: store)
+                        }
+                    }
+            }
+        }
+    }
+
+    private func performFind(_ text: String, forward: Bool = true) {
+        guard let webView = currentWebView else { return }
+        guard !text.isEmpty else {
+            // Clear highlights
+            webView.evaluateJavaScript("window.getSelection().removeAllRanges()", completionHandler: nil)
+            store.send(.updateFindResults(matchCount: 0, matchIndex: 0))
+            return
+        }
+        let js = "window.find('\(text.replacingOccurrences(of: "'", with: "\\'"))', false, \(!forward), true)"
+        webView.evaluateJavaScript(js) { result, _ in
+            let found = result as? Bool ?? false
+            // Simple match tracking - WebKit's window.find doesn't give total count easily
+            if found {
+                if store.findMatchCount == 0 {
+                    store.send(.updateFindResults(matchCount: 1, matchIndex: 0))
+                }
+            } else {
+                store.send(.updateFindResults(matchCount: 0, matchIndex: 0))
+            }
+        }
+    }
+
+    private func openBookmarkURL(_ url: URL) {
+        store.send(.binding(.set(\.urlBarText, url.absoluteString)))
+        store.send(.urlBarSubmitted)
+    }
+
+    private func recordHistory(for tab: BrowserTab) {
+        guard let url = tab.url, url.scheme == "https" || url.scheme == "http" else { return }
+        historyStore.addEntry(url: url, title: tab.title)
+    }
+
+    private func addOrEditBookmark() {
+        guard let tab = store.selectedTab, let url = tab.url else { return }
+        if bookmarkStore.isBookmarked(url: url) {
+            showBookmarksSidebar = true
+            editingBookmarkId = bookmarkStore.bookmark(for: url)?.id
+        } else {
+            let title = tab.title.isEmpty || tab.title == "New Tab"
+                ? (url.host ?? url.absoluteString)
+                : tab.title
+            bookmarkStore.addBookmark(title: title, url: url)
+        }
     }
 
     // MARK: - URL Bar
@@ -95,6 +181,69 @@ struct ContentView: View {
                 }
                 .focused($urlBarFocused)
 
+            Button(action: addOrEditBookmark) {
+                Image(systemName: bookmarkStore.isBookmarked(url: store.selectedTab?.url) ? "bookmark.fill" : "bookmark")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(bookmarkStore.isBookmarked(url: store.selectedTab?.url) ? store.accentColor.color : .secondary)
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Button(action: { showDownloadsPopover.toggle() }) {
+                Image(systemName: "arrow.down.circle")
+                    .font(.system(size: 13, weight: .medium))
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
+                    .overlay(alignment: .topTrailing) {
+                        if downloadManager.activeCount > 0 {
+                            Text("\(downloadManager.activeCount)")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 1)
+                                .background(store.accentColor.color)
+                                .clipShape(Capsule())
+                                .offset(x: 4, y: -4)
+                        }
+                    }
+            }
+            .buttonStyle(.plain)
+            .popover(isPresented: $showDownloadsPopover) {
+                DownloadsPopover()
+            }
+
+            Button(action: { showHistoryPanel.toggle() }) {
+                Image(systemName: "clock")
+                    .font(.system(size: 13, weight: .medium))
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Button(action: { showBookmarksSidebar.toggle() }) {
+                Image(systemName: "sidebar.left")
+                    .font(.system(size: 13, weight: .medium))
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            // Zoom indicator
+            if let zoom = store.selectedTab?.zoomLevel, abs(zoom - 1.0) > 0.01 {
+                Button(action: { store.send(.resetZoom) }) {
+                    Text("\(Int(zoom * 100))%")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.white.opacity(0.06))
+                        .clipShape(.rect(cornerRadius: 4))
+                }
+                .buttonStyle(.plain)
+                .help("Reset Zoom")
+            }
+
             Menu {
                 ForEach(AccentColor.allCases, id: \.self) { ac in
                     Button {
@@ -137,10 +286,25 @@ struct ContentView: View {
 
     // MARK: - Tab Bar
 
+    private var pinnedTabs: [BrowserTab] {
+        store.allTabs.filter(\.isPinned)
+    }
+
+    private var unpinnedUngroupedTabs: IdentifiedArrayOf<BrowserTab> {
+        store.ungroupedTabs.filter { !$0.isPinned }
+    }
+
     private var tabBar: some View {
         ScrollView(.horizontal) {
             HStack(spacing: 6) {
-                ForEach(store.ungroupedTabs) { tab in
+                // Pinned tabs first
+                ForEach(pinnedTabs) { tab in
+                    pinnedTabButton(tab)
+                }
+                if !pinnedTabs.isEmpty && (!unpinnedUngroupedTabs.isEmpty || !store.tabGroups.isEmpty) {
+                    Divider().frame(height: 20).padding(.horizontal, 2)
+                }
+                ForEach(unpinnedUngroupedTabs) { tab in
                     ungroupedTabButton(tab)
                 }
                 ForEach(store.tabGroups) { group in
@@ -249,6 +413,32 @@ struct ContentView: View {
         }
     }
 
+    private func pinnedTabButton(_ tab: BrowserTab) -> some View {
+        Button {
+            store.send(.selectTab(tab.id))
+        } label: {
+            faviconView(for: tab)
+                .frame(width: 28, height: 28)
+        }
+        .buttonStyle(.plain)
+        .background(tab.id == store.selectedId ? store.accentColor.color.opacity(0.15) : Color.clear)
+        .clipShape(.rect(cornerRadius: 8, style: .continuous))
+        .overlay(
+            Group {
+                if tab.id == store.selectedId {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .strokeBorder(store.accentColor.color.opacity(0.25), lineWidth: 0.5)
+                }
+            }
+        )
+        .help(tab.displayTitle)
+        .contextMenu {
+            Button("Unpin Tab") { store.send(.togglePinTab(tab.id)) }
+            Divider()
+            Button("Close Tab", role: .destructive) { store.send(.closeTab(tab.id)) }
+        }
+    }
+
     private func ungroupedTabButton(_ tab: BrowserTab) -> some View {
         tabButtonContent(tab)
             .onDrag {
@@ -259,6 +449,9 @@ struct ContentView: View {
                 handleDrop(providers: providers, beforeTab: tab.id)
             }
             .contextMenu {
+                Button(tab.isPinned ? "Unpin Tab" : "Pin Tab") {
+                    store.send(.togglePinTab(tab.id))
+                }
                 Button("Add to New Group") {
                     store.send(.createGroup(from: tab.id))
                 }
@@ -298,6 +491,25 @@ struct ContentView: View {
             }
     }
 
+    @ViewBuilder
+    private func faviconView(for tab: BrowserTab) -> some View {
+        if let faviconURL = tab.faviconURL {
+            AsyncImage(url: faviconURL) { image in
+                image.resizable().aspectRatio(contentMode: .fit)
+            } placeholder: {
+                Image(systemName: "globe")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            .frame(width: 14, height: 14)
+        } else {
+            Image(systemName: "globe")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .frame(width: 14, height: 14)
+        }
+    }
+
     private func tabButtonContent(_ tab: BrowserTab, groupColor: GroupColor? = nil) -> some View {
         let isSelected = tab.id == store.selectedId
         let isHovered = tab.id == hoveredTabId
@@ -310,6 +522,7 @@ struct ContentView: View {
                         .fill(gc.color)
                         .frame(width: 3)
                 }
+                faviconView(for: tab)
                 Text(tab.displayTitle)
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -373,7 +586,37 @@ struct ContentView: View {
     // MARK: - Content Area
 
     private var contentArea: some View {
+        HStack(spacing: 0) {
+            mainWebContent
+            if showSplitView, let splitId = store.splitTabId, let splitTab = store.allTabs[id: splitId] {
+                Divider()
+                ZStack {
+                    WebView(
+                        tab: splitTab,
+                        isActive: true,
+                        send: { store.send($0) },
+                        onRegisterWebView: { view in
+                            if let w = view { splitWebView = w }
+                        },
+                        downloadManager: downloadManager,
+                        contentBlockingEnabled: contentBlockingEnabled
+                    )
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+    }
+
+    private var mainWebContent: some View {
         ZStack(alignment: .topLeading) {
+            // New tab page when no URL loaded
+            if store.selectedTab?.url == nil {
+                NewTabPageView(
+                    accentColor: store.accentColor.color,
+                    onNavigate: openBookmarkURL,
+                    onFocusURLBar: { urlBarFocused = true }
+                )
+            }
             ForEach(store.allTabs) { tab in
                 WebView(
                     tab: tab,
@@ -383,9 +626,11 @@ struct ContentView: View {
                         if let w = view {
                             currentWebView = w
                         }
-                    }
+                    },
+                    downloadManager: downloadManager,
+                    contentBlockingEnabled: contentBlockingEnabled
                 )
-                .opacity(tab.id == store.selectedId ? 1 : 0)
+                .opacity(tab.id == store.selectedId && tab.url != nil ? 1 : 0)
                 .allowsHitTesting(tab.id == store.selectedId)
                 .zIndex(tab.id == store.selectedId ? 1 : 0)
             }
@@ -409,11 +654,100 @@ struct ContentView: View {
     }
 }
 
+// MARK: - Trigger Modifiers (extracted to help type-checker)
+
+private struct TriggerModifiers: ViewModifier {
+    @Bindable var store: StoreOf<AppFeature>
+    var urlBarFocused: FocusState<Bool>.Binding
+    var renameFieldFocused: FocusState<Bool>.Binding
+    @Binding var showBookmarksSidebar: Bool
+    @Binding var showDownloadsPopover: Bool
+    @Binding var showHistoryPanel: Bool
+    @Binding var showSplitView: Bool
+    var addOrEditBookmark: () -> Void
+    var performFind: (String) -> Void
+    var recordHistory: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .modifier(TriggerModifiersA(
+                store: store,
+                urlBarFocused: urlBarFocused,
+                renameFieldFocused: renameFieldFocused,
+                showBookmarksSidebar: $showBookmarksSidebar,
+                showDownloadsPopover: $showDownloadsPopover,
+                addOrEditBookmark: addOrEditBookmark
+            ))
+            .modifier(TriggerModifiersB(
+                store: store,
+                showHistoryPanel: $showHistoryPanel,
+                showSplitView: $showSplitView,
+                performFind: performFind,
+                recordHistory: recordHistory
+            ))
+    }
+}
+
+private struct TriggerModifiersA: ViewModifier {
+    @Bindable var store: StoreOf<AppFeature>
+    var urlBarFocused: FocusState<Bool>.Binding
+    var renameFieldFocused: FocusState<Bool>.Binding
+    @Binding var showBookmarksSidebar: Bool
+    @Binding var showDownloadsPopover: Bool
+    var addOrEditBookmark: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: store.focusURLBarTrigger) { _, _ in
+                urlBarFocused.wrappedValue = true
+            }
+            .onChange(of: store.focusRenameFieldTrigger) { _, _ in
+                renameFieldFocused.wrappedValue = true
+            }
+            .onChange(of: store.addBookmarkTrigger) { _, _ in
+                addOrEditBookmark()
+            }
+            .onChange(of: store.toggleBookmarksSidebarTrigger) { _, _ in
+                showBookmarksSidebar.toggle()
+            }
+            .onChange(of: store.toggleDownloadsPopoverTrigger) { _, _ in
+                showDownloadsPopover.toggle()
+            }
+    }
+}
+
+private struct TriggerModifiersB: ViewModifier {
+    @Bindable var store: StoreOf<AppFeature>
+    @Binding var showHistoryPanel: Bool
+    @Binding var showSplitView: Bool
+    var performFind: (String) -> Void
+    var recordHistory: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: store.toggleHistoryPanelTrigger) { _, _ in
+                showHistoryPanel.toggle()
+            }
+            .onChange(of: store.toggleSplitViewTrigger) { _, _ in
+                showSplitView = store.splitTabId != nil
+            }
+            .onChange(of: store.findText) { _, newValue in
+                performFind(newValue)
+            }
+            .onChange(of: store.selectedTab?.url) { _, _ in
+                recordHistory()
+            }
+    }
+}
+
 #Preview {
     ContentView(
         store: Store(initialState: AppFeature.State()) {
             AppFeature()
         }
     )
+    .environment(BookmarkStore())
+    .environment(DownloadManager())
+    .environment(HistoryStore())
     .frame(width: 900, height: 600)
 }

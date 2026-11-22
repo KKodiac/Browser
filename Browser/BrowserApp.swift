@@ -6,15 +6,29 @@ struct BrowserApp: App {
     @State private var store = Store(initialState: AppFeature.State()) {
         AppFeature()
     }
+    @State private var bookmarkStore = BookmarkStore()
+    @State private var downloadManager = DownloadManager()
+    @State private var historyStore = HistoryStore()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
             ContentView(store: store)
+                .environment(bookmarkStore)
+                .environment(downloadManager)
+                .environment(historyStore)
                 .frame(minWidth: 800, minHeight: 600)
+                .onAppear { restoreSession() }
+                .onDisappear { saveSession() }
         }
         .windowStyle(.automatic)
         .commands {
-            CommandGroup(replacing: .newItem) {}
+            CommandGroup(replacing: .newItem) {
+                Button("New Tab") {
+                    store.send(.addTab)
+                }
+                .keyboardShortcut("t", modifiers: .command)
+            }
             CommandMenu("Navigation") {
                 Button("Back") {
                     store.send(.goBack)
@@ -34,6 +48,77 @@ struct BrowserApp: App {
                 }
                 .keyboardShortcut("l", modifiers: .command)
             }
+            CommandMenu("Bookmarks") {
+                Button("Add Bookmark") {
+                    store.send(.addBookmark)
+                }
+                .keyboardShortcut("d", modifiers: .command)
+                Button("Show Bookmarks") {
+                    store.send(.toggleBookmarksSidebar)
+                }
+                .keyboardShortcut("b", modifiers: [.command, .shift])
+            }
+            CommandMenu("Downloads") {
+                Button("Show Downloads") {
+                    store.send(.toggleDownloadsPopover)
+                }
+                .keyboardShortcut("j", modifiers: [.command, .shift])
+            }
+            CommandGroup(replacing: .textEditing) {
+                Button("Find...") {
+                    store.send(.toggleFindBar)
+                }
+                .keyboardShortcut("f", modifiers: .command)
+            }
+            CommandMenu("History") {
+                Button("Show History") {
+                    store.send(.toggleHistoryPanel)
+                }
+                .keyboardShortcut("y", modifiers: .command)
+            }
+            CommandMenu("View") {
+                Button("Zoom In") {
+                    store.send(.zoomIn)
+                }
+                .keyboardShortcut("+", modifiers: .command)
+                Button("Zoom Out") {
+                    store.send(.zoomOut)
+                }
+                .keyboardShortcut("-", modifiers: .command)
+                Button("Actual Size") {
+                    store.send(.resetZoom)
+                }
+                .keyboardShortcut("0", modifiers: .command)
+                Divider()
+                Button("Toggle Split View") {
+                    store.send(.toggleSplitView)
+                }
+                .keyboardShortcut("\\", modifiers: .command)
+            }
         }
+
+        #if os(macOS)
+        Settings {
+            SettingsView()
+        }
+        #endif
+    }
+
+    // MARK: - Session Persistence
+
+    private func saveSession() {
+        let data = SessionData(
+            ungroupedTabs: Array(store.ungroupedTabs),
+            tabGroups: Array(store.tabGroups),
+            selectedTabId: store.selectedTabId,
+            accentColor: store.accentColor
+        )
+        SessionStore.save(data)
+    }
+
+    private func restoreSession() {
+        guard let data = SessionStore.load() else { return }
+        guard !data.ungroupedTabs.isEmpty || !data.tabGroups.isEmpty else { return }
+        store.send(.restoreSession(data))
     }
 }
