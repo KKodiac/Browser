@@ -57,10 +57,9 @@ final class DownloadManager {
     }
 
     func updateProgress(id: UUID, bytesReceived: Int64, totalBytes: Int64) {
-        guard let item = downloads.first(where: { $0.id == id }) else { return }
+        guard let item = downloads.first(where: { $0.id == id }), item.state == .downloading else { return }
         item.bytesReceived = bytesReceived
         item.totalBytes = totalBytes
-        item.state = .downloading
     }
 
     func completeDownload(id: UUID, tempURL: URL) {
