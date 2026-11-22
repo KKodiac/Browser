@@ -17,6 +17,12 @@ struct BrowserApp: App {
         TimelineStore.shared.startAutosnapshots()
     }
 
+    /// Tab triage needs the on-device Foundation Models framework (macOS 26+).
+    private static var supportsTabTriage: Bool {
+        if #available(macOS 26.0, *) { return true }
+        return false
+    }
+
     var body: some Scene {
         WindowGroup(id: BrowserWindow.mainID) {
             BrowserWindow(isPrivate: false)
@@ -70,6 +76,12 @@ struct BrowserApp: App {
                     store?.send(.selectLastTab)
                 }
                 .keyboardShortcut("9", modifiers: .command)
+                Divider()
+                Button("Organize Tabs…") {
+                    store?.send(.showTabTriage)
+                }
+                .keyboardShortcut("o", modifiers: [.command, .option])
+                .disabled(!Self.supportsTabTriage)
             }
             CommandMenu("Navigation") {
                 Button("Back") {

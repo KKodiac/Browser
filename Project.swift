@@ -25,6 +25,7 @@ let project = Project(
                 .sdk(name: "AppKit", type: .framework),
                 .sdk(name: "WebKit", type: .framework),
                 .sdk(name: "AuthenticationServices", type: .framework),
+                .sdk(name: "FoundationModels", type: .framework, status: .optional),
                 .external(name: "ComposableArchitecture"),
             ],
             settings: .settings(

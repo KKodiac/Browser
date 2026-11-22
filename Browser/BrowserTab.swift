@@ -14,6 +14,8 @@ struct BrowserTab: Equatable, Identifiable, Codable {
     var faviconURL: URL?
     var estimatedProgress: Double
     var loadError: String?
+    /// When the tab was last selected (or created). Persisted so stale tabs survive relaunch.
+    var lastActiveAt: Date
 
     init(
         id: UUID = UUID(),
@@ -28,7 +30,8 @@ struct BrowserTab: Equatable, Identifiable, Codable {
         zoomLevel: Double = 1.0,
         faviconURL: URL? = nil,
         estimatedProgress: Double = 0,
-        loadError: String? = nil
+        loadError: String? = nil,
+        lastActiveAt: Date = Date()
     ) {
         self.id = id
         self.url = url
@@ -43,11 +46,12 @@ struct BrowserTab: Equatable, Identifiable, Codable {
         self.faviconURL = faviconURL
         self.estimatedProgress = estimatedProgress
         self.loadError = loadError
+        self.lastActiveAt = lastActiveAt
     }
 
     // Exclude transient properties from persistence
     enum CodingKeys: String, CodingKey {
-        case id, url, title, suggestedURL, isPinned, zoomLevel, faviconURL
+        case id, url, title, suggestedURL, isPinned, zoomLevel, faviconURL, lastActiveAt
     }
 
     init(from decoder: Decoder) throws {
@@ -59,6 +63,7 @@ struct BrowserTab: Equatable, Identifiable, Codable {
         isPinned = try c.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false
         zoomLevel = try c.decodeIfPresent(Double.self, forKey: .zoomLevel) ?? 1.0
         faviconURL = try c.decodeIfPresent(URL.self, forKey: .faviconURL)
+        lastActiveAt = try c.decodeIfPresent(Date.self, forKey: .lastActiveAt) ?? Date()
         isLoading = false
         canGoBack = false
         canGoForward = false
