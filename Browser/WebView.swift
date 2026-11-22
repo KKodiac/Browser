@@ -20,6 +20,7 @@ struct WebView: NSViewRepresentable {
         webView.uiDelegate = context.coordinator
         webView.allowsBackForwardNavigationGestures = true
         context.coordinator.webView = webView
+        context.coordinator.observeProgress(of: webView)
         return webView
     }
 
@@ -48,6 +49,8 @@ struct WebView: NSViewRepresentable {
     }
 
     static func dismantleNSView(_ webView: WKWebView, coordinator: Coordinator) {
+        coordinator.progressObservation?.invalidate()
+        coordinator.progressObservation = nil
         coordinator.onRegisterWebView(nil)
     }
 
@@ -62,6 +65,8 @@ struct WebView: NSViewRepresentable {
         var onRegisterWebView: (WKWebView?) -> Void
         var downloadManager: DownloadManager?
         var lastLoadedURL: URL?
+        var progressObservation: NSKeyValueObservation?
+        private var lastSentProgress: Double = 0
         private var downloadItems: [WKDownload: UUID] = [:]
         private var downloadTempURLs: [UUID: URL] = [:]
 
@@ -70,6 +75,18 @@ struct WebView: NSViewRepresentable {
             self.send = send
             self.onRegisterWebView = onRegisterWebView
             self.downloadManager = downloadManager
+        }
+
+        func observeProgress(of webView: WKWebView) {
+            progressObservation = webView.observe(\.estimatedProgress, options: [.new]) { [weak self] webView, _ in
+                guard let self else { return }
+                let progress = webView.estimatedProgress
+                // Only send meaningful changes to avoid flooding the store
+                guard progress >= 1 || progress < self.lastSentProgress || progress - self.lastSentProgress >= 0.05 else { return }
+                guard progress != self.lastSentProgress else { return }
+                self.lastSentProgress = progress
+                self.send(.webViewProgressChanged(tabId: self.tab.id, progress: progress))
+            }
         }
 
         func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
