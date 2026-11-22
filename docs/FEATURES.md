@@ -2,7 +2,9 @@
 
 Feature inventory and roadmap for Browser. Status as of 2026-11-22.
 
-Legend: ✅ shipped (committed) · 🚧 in progress (uncommitted, needs fixes) · ⬜ planned / idea
+Legend: ✅ shipped (on master) · 🚧 shipped with known issues · ⬜ planned / idea
+
+Note: there is no test target yet. Everything below was checked by a passing build and code review only, not by using the app.
 
 ---
 
@@ -17,48 +19,46 @@ Legend: ✅ shipped (committed) · 🚧 in progress (uncommitted, needs fixes) �
 | ✅ Accent color theming | 8 accent colors |
 | ✅ JavaScript dialogs | `alert`, `confirm`, `prompt` |
 
-## 2. In progress (uncommitted)
+## 2. Recently added
 
-Each has an OpenSpec change in `openspec/changes/`. All tasks are ticked, but review found the issues listed.
+Each has an OpenSpec change in `openspec/changes/`. Bugs from the first review were fixed in PRs #1, #2, #5 and #6.
 
 | Feature | Status / known issues |
 |---|---|
-| 🚧 Bookmarks | Add/remove, sidebar, folders. Editing from ⌘D doesn't enter edit mode (state not shared with sidebar) |
-| 🚧 History | Panel, recording on URL change |
-| 🚧 Downloads | Popover, active badge. Progress never updates (`didReceiveData` is not a `WKDownloadDelegate` method) |
-| 🚧 Find in page | Find bar, ⌘F. Next/Previous don't move in the page; match count is only 0 or 1 |
-| 🚧 Session persistence | Save on `onDisappear` is unreliable on app quit |
-| 🚧 Content blocker | Static ad/tracker list. Rules compile async, so tabs created at launch aren't blocked; toggle doesn't affect existing tabs |
-| 🚧 Favicons | Shown in tabs via `AsyncImage`; `FaviconCache` unused |
-| 🚧 New tab page | Shown when tab has no URL |
-| 🚧 Settings | Search engine, content blocking |
-| 🚧 Tab pinning | Pinned tabs shown first as icons |
-| 🚧 Zoom controls | ⌘+ / ⌘- / ⌘0, per-tab zoom indicator |
-| 🚧 Split view | ⌘\\; find/zoom don't target the split pane |
+| ✅ Bookmarks | Add/remove, sidebar, folders; ⌘D on a bookmarked page opens it for editing |
+| ✅ History | Panel, recording on URL change |
+| ✅ Downloads | Popover, active badge, live progress |
+| ✅ Find in page | Find bar, ⌘F, Next/Previous, "N of M" count, Esc to close |
+| ✅ Session persistence | Saved on app quit |
+| 🚧 Content blocker | Static ad/tracker list; applies to all tabs and follows the setting. Changes take effect on the next page load |
+| 🚧 Favicons | Shown in tabs via `AsyncImage`; `FaviconCache` is still unused |
+| ✅ New tab page | Shown when tab has no URL |
+| ✅ Settings | Search engine, content blocking |
+| ✅ Tab pinning | Pinned tabs shown first as icons |
+| ✅ Zoom controls | ⌘+ / ⌘- / ⌘0, per-tab zoom indicator |
+| 🚧 Split view | ⌘\\; find and zoom commands only act on the main pane |
 | ⬜ Private browsing | Spec exists, no code |
 | ⬜ Multiple windows | Spec exists, no code (all windows share one store) |
 | ⬜ URL autocomplete | Spec exists, no code |
-
-**Blocker:** the build currently fails inside ComposableArchitecture (`NavigationStack+Observation.swift`, main-actor key path error). Bump TCA to a version compatible with the installed toolchain.
 
 ## 3. Essential gaps
 
 Baseline behavior users expect. Ordered by impact.
 
 ### Web compatibility
-- ⬜ `target="_blank"` / `window.open` → new tab (`createWebViewWith` not implemented; such links do nothing today)
-- ⬜ File upload (`runOpenPanelWith`)
+- ✅ `target="_blank"` / `window.open` → new tab (#9)
+- ✅ File upload (#7)
 - ⬜ HTTP auth and certificate challenges
-- ⬜ Error pages (offline, DNS failure, bad certificate)
+- ✅ Error pages (offline, DNS failure, bad certificate) (#8)
 - ⬜ Camera / microphone / location permission prompts
 - ⬜ Element fullscreen and Picture-in-Picture
 
 ### Tabs & navigation
-- ⬜ ⌘W close tab, ⇧⌘T reopen closed tab
-- ⬜ ⌘1–9 and ⌃Tab / ⌃⇧Tab tab switching
-- ⬜ Link context menu: Open in New Tab, Copy Link, Download Linked File
-- ⬜ ⌘-click / middle-click opens in background tab
-- ⬜ Loading progress bar (`estimatedProgress`)
+- ✅ ⌘W close tab, ⇧⌘T reopen closed tab (#4)
+- ✅ ⌘1–9 and ⌃Tab / ⌃⇧Tab tab switching (#4)
+- ✅ Link context menu: Open Link in New Tab (#9)
+- ✅ ⌘-click / middle-click opens in background tab (#9)
+- ✅ Loading progress bar (#3)
 - ⬜ Audio indicator and per-tab mute
 - ⬜ Tab sleeping (unload inactive web views to save memory)
 
@@ -78,7 +78,7 @@ Baseline behavior users expect. Ordered by impact.
 - ⬜ Command palette (⌘K) across tabs, bookmarks, history
 
 ### Engineering
-- ⬜ Fix TCA build error
+- ✅ Fix TCA build error (TCA 1.26.2)
 - ⬜ Test target with `TestStore` coverage for `AppFeature`
 - ⬜ Update README feature list
 
