@@ -11,7 +11,7 @@ struct WebView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
-        let webView = WKWebView(frame: .zero, configuration: config)
+        let webView = BrowserWKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
         webView.uiDelegate = context.coordinator
         webView.allowsBackForwardNavigationGestures = true
@@ -196,6 +196,18 @@ struct WebView: NSViewRepresentable {
             }
         }
 
+        // MARK: - Navigation Action (Open in New Tab)
+
+        func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+            let wantsNewTab = navigationAction.modifierFlags.contains(.command) || navigationAction.buttonNumber == 2
+            if navigationAction.navigationType == .linkActivated, wantsNewTab, let url = navigationAction.request.url {
+                send(.openURLInNewTab(url, select: false))
+                decisionHandler(.cancel)
+                return
+            }
+            decisionHandler(.allow)
+        }
+
         // MARK: - Navigation Response (Download Detection)
 
         func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse, decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
@@ -249,6 +261,15 @@ struct WebView: NSViewRepresentable {
 
         // MARK: - WKUIDelegate
 
+        // target="_blank" links, window.open and the context menu's "Open Link in New Tab"
+        func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+            if let url = navigationAction.request.url, url.absoluteString != "about:blank", !url.absoluteString.isEmpty {
+                let background = navigationAction.modifierFlags.contains(.command) || navigationAction.buttonNumber == 2
+                send(.openURLInNewTab(url, select: !background))
+            }
+            return nil
+        }
+
         func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
             let alert = NSAlert()
             alert.messageText = message
@@ -289,6 +310,17 @@ struct WebView: NSViewRepresentable {
             } else {
                 panel.begin(completionHandler: handler)
             }
+        }
+    }
+}
+
+/// Retitles WebKit's "Open Link in New Window" context menu item; the item still routes through
+/// `webView(_:createWebViewWith:for:windowFeatures:)`, which opens a tab instead of a window.
+final class BrowserWKWebView: WKWebView {
+    override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
+        super.willOpenMenu(menu, with: event)
+        for item in menu.items where item.identifier?.rawValue == "WKMenuItemIdentifierOpenLinkInNewWindow" {
+            item.title = "Open Link in New Tab"
         }
     }
 }

@@ -71,6 +71,7 @@ struct AppFeature {
         case selectLastTab
         case selectNextTab
         case selectPreviousTab
+        case openURLInNewTab(URL, select: Bool)
         // URL
         case urlBarSubmitted
         // Navigation commands
@@ -210,6 +211,15 @@ struct AppFeature {
                 var offset = -1
                 if case .selectNextTab = action { offset = 1 }
                 return .send(.selectTab(tabs[(current + offset + tabs.count) % tabs.count].id))
+
+            case let .openURLInNewTab(url, select):
+                let tab = BrowserTab(url: url, suggestedURL: url.absoluteString)
+                state.ungroupedTabs.append(tab)
+                if select {
+                    state.selectedTabId = tab.id
+                    state.urlBarText = url.absoluteString
+                }
+                return .none
 
             // MARK: - URL
 
