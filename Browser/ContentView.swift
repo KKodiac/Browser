@@ -22,6 +22,7 @@ struct ContentView: View {
     @State private var showSplitView = false
     @State private var editingBookmarkId: UUID?
     @FocusState private var urlBarFocused: Bool
+    @State private var urlSuggestions = URLSuggestionsModel()
     @FocusState private var renameFieldFocused: Bool
 
     var body: some View {
@@ -226,7 +227,14 @@ struct ContentView: View {
                     .strokeBorder(Color.white.opacity(0.10), lineWidth: 0.5)
             )
 
-            TextField("Search or enter URL", text: $store.urlBarText)
+            TextField("Search or enter URL", text: Binding(
+                get: { store.urlBarText },
+                set: { text in
+                    // Only user edits reach this setter, so programmatic URL updates don't open the dropdown.
+                    store.send(.binding(.set(\.urlBarText, text)))
+                    urlSuggestions.update(query: text, history: historyStore.entries, bookmarks: bookmarkStore.bookmarks)
+                }
+            ))
                 .textFieldStyle(.plain)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
@@ -249,9 +257,38 @@ struct ContentView: View {
                         )
                 )
                 .onSubmit {
+                    if let suggestion = urlSuggestions.selected {
+                        store.send(.binding(.set(\.urlBarText, suggestion.url.absoluteString)))
+                    }
+                    urlSuggestions.dismiss()
                     store.send(.urlBarSubmitted)
                 }
                 .focused($urlBarFocused)
+                .onKeyPress(.downArrow) {
+                    guard urlSuggestions.isVisible else { return .ignored }
+                    urlSuggestions.moveSelection(by: 1)
+                    return .handled
+                }
+                .onKeyPress(.upArrow) {
+                    guard urlSuggestions.isVisible else { return .ignored }
+                    urlSuggestions.moveSelection(by: -1)
+                    return .handled
+                }
+                .onExitCommand { urlSuggestions.dismiss() }
+                .onChange(of: urlBarFocused) { _, focused in
+                    if !focused { urlSuggestions.dismiss() }
+                }
+                .overlay(alignment: .top) {
+                    if urlSuggestions.isVisible {
+                        URLSuggestionsView(model: urlSuggestions, accentColor: store.accentColor.color) { url in
+                            urlSuggestions.dismiss()
+                            openBookmarkURL(url)
+                        }
+                        .fixedSize(horizontal: false, vertical: true)
+                        // Bottom edge sits just above the URL bar (field top + bar's 10pt padding).
+                        .alignmentGuide(.top) { $0[.bottom] + 14 }
+                    }
+                }
 
             Button(action: addOrEditBookmark) {
                 Image(systemName: bookmarkStore.isBookmarked(url: store.selectedTab?.url) ? "bookmark.fill" : "bookmark")

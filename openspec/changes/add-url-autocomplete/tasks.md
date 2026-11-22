@@ -22,12 +22,12 @@
 - [x] 3.2 Handle up arrow to move selection to previous suggestion (or back to input)
 - [x] 3.3 Handle Enter to accept the selected suggestion and navigate
 - [x] 3.4 Handle Escape to dismiss the dropdown without navigating
-- [x] 3.5 Implement inline completion: auto-fill top match URL with completion portion selected
-- [x] 3.6 Replace inline completion text when user continues typing
+- [ ] 3.5 Implement inline completion: auto-fill top match URL with completion portion selected
+- [ ] 3.6 Replace inline completion text when user continues typing
 
 ## 4. Integration with History/Bookmarks Stores
 
-- [x] 4.1 Define a data source protocol the suggestion engine queries
+- [ ] 4.1 Define a data source protocol the suggestion engine queries
 - [x] 4.2 Implement popular-sites data source as the default
 - [x] 4.3 Add hook for history store integration (when history feature is implemented)
 - [x] 4.4 Add hook for bookmark store integration (when bookmarks feature is implemented)
