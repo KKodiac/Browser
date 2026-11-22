@@ -22,6 +22,7 @@ struct AppFeature {
         var toggleHistoryPanelTrigger: Int = 0
         var toggleFindBarTrigger: Int = 0
         var toggleSplitViewTrigger: Int = 0
+        var toggleCommandBarTrigger: Int = 0
         // Find in page
         var findText: String = ""
         var findMatchCount: Int = 0
@@ -121,6 +122,8 @@ struct AppFeature {
         case resetZoom
         // Split view
         case toggleSplitView
+        // Command bar
+        case toggleCommandBar
         // Favicon
         case updateFavicon(tabId: UUID, faviconURL: URL?)
         // WebView delegate callbacks
@@ -489,6 +492,12 @@ struct AppFeature {
                     state.splitTabId = other?.id
                 }
                 state.toggleSplitViewTrigger += 1
+                return .none
+
+            // MARK: - Command Bar
+
+            case .toggleCommandBar:
+                state.toggleCommandBarTrigger += 1
                 return .none
 
             // MARK: - Favicon

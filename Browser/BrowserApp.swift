@@ -88,6 +88,10 @@ struct BrowserApp: App {
                     store?.send(.focusURLBar)
                 }
                 .keyboardShortcut("l", modifiers: .command)
+                Button("Command Bar…") {
+                    store?.send(.toggleCommandBar)
+                }
+                .keyboardShortcut("k", modifiers: .command)
             }
             CommandMenu("Bookmarks") {
                 Button("Add Bookmark") {
