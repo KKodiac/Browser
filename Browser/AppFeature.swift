@@ -24,6 +24,7 @@ struct AppFeature {
         var toggleSplitViewTrigger: Int = 0
         var toggleCommandBarTrigger: Int = 0
         var showTabTriageTrigger: Int = 0
+        var toggleAskPageTrigger: Int = 0
         // Find in page
         var findText: String = ""
         var findMatchCount: Int = 0
@@ -130,6 +131,8 @@ struct AppFeature {
         // Tab triage
         case showTabTriage
         case applyTriage(TabTriagePlan)
+
+        case toggleAskPage
         // Favicon
         case updateFavicon(tabId: UUID, faviconURL: URL?)
         // WebView delegate callbacks
@@ -534,6 +537,12 @@ struct AppFeature {
                 // Pinned tabs are never closed.
                 let closeIds = plan.closeTabIds.filter { state.allTabs[id: $0]?.isPinned == false }
                 return .merge(closeIds.map { .send(.closeTab($0)) })
+
+            // MARK: - Ask This Page
+
+            case .toggleAskPage:
+                state.toggleAskPageTrigger += 1
+                return .none
 
             // MARK: - Favicon
 
