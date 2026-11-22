@@ -20,6 +20,7 @@ struct ContentView: View {
     @State private var showDownloadsPopover = false
     @State private var showHistoryPanel = false
     @State private var showSplitView = false
+    @State private var showAskPage = false
     @State private var editingBookmarkId: UUID?
     @FocusState private var urlBarFocused: Bool
     @State private var urlSuggestions = URLSuggestionsModel()
@@ -53,6 +54,9 @@ struct ContentView: View {
                 showCommandBar.toggle()
             }
             .modifier(TabTriageModifier(store: store))
+            .onChange(of: store.toggleAskPageTrigger) { _, _ in
+                if #available(macOS 26.0, *) { showAskPage.toggle() }
+            }
             .alert("Bookmark this page?", isPresented: $showPrivateBookmarkAlert) {
                 Button("Add Bookmark") {
                     if let tab = store.selectedTab, let url = tab.url {
@@ -88,6 +92,18 @@ struct ContentView: View {
                             FindBar(store: store)
                         }
                     }
+            }
+            if showAskPage {
+                if #available(macOS 26.0, *) {
+                    Divider()
+                    AskPagePanel(
+                        tabId: store.selectedId,
+                        webView: currentWebView,
+                        hasPage: store.selectedTab?.url != nil,
+                        accentColor: store.accentColor.color,
+                        onDismiss: { showAskPage = false }
+                    )
+                }
             }
         }
     }
@@ -347,6 +363,18 @@ struct ContentView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+
+            if #available(macOS 26.0, *) {
+                Button(action: { showAskPage.toggle() }) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(showAskPage ? store.accentColor.color : .primary)
+                        .frame(width: 28, height: 28)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Ask This Page (⇧⌘A)")
+            }
 
             // Zoom indicator
             if let zoom = store.selectedTab?.zoomLevel, abs(zoom - 1.0) > 0.01 {

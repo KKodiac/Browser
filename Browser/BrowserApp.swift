@@ -156,6 +156,11 @@ struct BrowserApp: App {
                     store?.send(.toggleSplitView)
                 }
                 .keyboardShortcut("\\", modifiers: .command)
+                Button("Ask This Page") {
+                    store?.send(.toggleAskPage)
+                }
+                .keyboardShortcut("a", modifiers: [.command, .shift])
+                .disabled(!askPageSupported)
             }
         }
         .commands {
@@ -179,5 +184,11 @@ struct BrowserApp: App {
             SettingsView()
         }
         #endif
+    }
+
+    /// Ask This Page needs the Foundation Models framework (macOS 26+).
+    private var askPageSupported: Bool {
+        if #available(macOS 26.0, *) { return true }
+        return false
     }
 }
