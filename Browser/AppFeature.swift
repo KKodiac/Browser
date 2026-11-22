@@ -27,6 +27,8 @@ struct AppFeature {
         var findMatchCount: Int = 0
         var findMatchIndex: Int = 0
         var showFindBar: Bool = false
+        var findNavigateTrigger: Int = 0
+        var findNavigateStep: Int = 1
         // Split view
         var splitTabId: UUID?
         // Recently closed tabs (most recent last), bounded
@@ -447,15 +449,13 @@ struct AppFeature {
                 return .none
 
             case .findNext:
-                if state.findMatchCount > 0 {
-                    state.findMatchIndex = (state.findMatchIndex + 1) % state.findMatchCount
-                }
+                state.findNavigateStep = 1
+                state.findNavigateTrigger += 1
                 return .none
 
             case .findPrevious:
-                if state.findMatchCount > 0 {
-                    state.findMatchIndex = (state.findMatchIndex - 1 + state.findMatchCount) % state.findMatchCount
-                }
+                state.findNavigateStep = -1
+                state.findNavigateTrigger += 1
                 return .none
 
             case .dismissFindBar:
