@@ -72,6 +72,7 @@ struct WebView: NSViewRepresentable {
         private var appliedRuleList: WKContentRuleList?
         private var downloadItems: [WKDownload: UUID] = [:]
         private var downloadTempURLs: [UUID: URL] = [:]
+        private var downloadProgressObservations: [WKDownload: NSKeyValueObservation] = [:]
 
         init(tab: BrowserTab, send: @escaping (AppFeature.Action) -> Void, onRegisterWebView: @escaping (WKWebView?) -> Void, downloadManager: DownloadManager?) {
             self.tab = tab
@@ -237,15 +238,19 @@ struct WebView: NSViewRepresentable {
             let (item, tempURL) = manager.startDownload(sourceURL: sourceURL, suggestedFilename: suggestedFilename, wkDownload: download)
             downloadItems[download] = item.id
             downloadTempURLs[item.id] = tempURL
+            let id = item.id
+            downloadProgressObservations[download] = download.progress.observe(\.fractionCompleted) { [weak self] progress, _ in
+                let completed = progress.completedUnitCount
+                let total = progress.totalUnitCount
+                DispatchQueue.main.async {
+                    self?.downloadManager?.updateProgress(id: id, bytesReceived: completed, totalBytes: total)
+                }
+            }
             completionHandler(tempURL)
         }
 
-        func download(_ download: WKDownload, didReceiveData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
-            guard let id = downloadItems[download] else { return }
-            downloadManager?.updateProgress(id: id, bytesReceived: totalBytesWritten, totalBytes: totalBytesExpectedToWrite)
-        }
-
         func downloadDidFinish(_ download: WKDownload) {
+            downloadProgressObservations.removeValue(forKey: download)?.invalidate()
             guard let id = downloadItems[download], let tempURL = downloadTempURLs[id] else { return }
             downloadManager?.completeDownload(id: id, tempURL: tempURL)
             downloadItems.removeValue(forKey: download)
@@ -253,6 +258,7 @@ struct WebView: NSViewRepresentable {
         }
 
         func download(_ download: WKDownload, didFailWithError error: Error, resumeData: Data?) {
+            downloadProgressObservations.removeValue(forKey: download)?.invalidate()
             guard let id = downloadItems[download] else { return }
             downloadManager?.failDownload(id: id, error: error.localizedDescription)
             downloadItems.removeValue(forKey: download)
