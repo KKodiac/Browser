@@ -631,6 +631,10 @@ struct ContentView: View {
                 .allowsHitTesting(tab.id == store.selectedId)
                 .zIndex(tab.id == store.selectedId ? 1 : 0)
             }
+            if let message = store.selectedTab?.loadError {
+                ErrorPageView(message: message, onRetry: retryLoad)
+                    .zIndex(2)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .overlay(alignment: .top) {
@@ -639,6 +643,15 @@ struct ContentView: View {
                 isLoading: store.selectedTab?.isLoading == true,
                 color: store.accentColor.color
             )
+        }
+    }
+
+    private func retryLoad() {
+        guard let webView = currentWebView else { return }
+        if webView.url != nil {
+            webView.reload()
+        } else if let url = store.selectedTab?.url {
+            webView.load(URLRequest(url: url))
         }
     }
 
