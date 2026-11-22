@@ -11,16 +11,15 @@ struct WebView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
-        // Content blocker
-        if contentBlockingEnabled, let ruleList = ContentBlockerManager.shared.ruleList {
-            config.userContentController.add(ruleList)
-        }
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
         webView.uiDelegate = context.coordinator
         webView.allowsBackForwardNavigationGestures = true
         context.coordinator.webView = webView
         context.coordinator.observeProgress(of: webView)
+        // Content blocker
+        context.coordinator.contentBlockingEnabled = contentBlockingEnabled
+        context.coordinator.applyContentRules()
         return webView
     }
 
@@ -29,6 +28,8 @@ struct WebView: NSViewRepresentable {
         context.coordinator.send = send
         context.coordinator.onRegisterWebView = onRegisterWebView
         context.coordinator.downloadManager = downloadManager
+        context.coordinator.contentBlockingEnabled = contentBlockingEnabled
+        context.coordinator.applyContentRules()
         if isActive {
             DispatchQueue.main.async {
                 onRegisterWebView(webView)
@@ -67,6 +68,8 @@ struct WebView: NSViewRepresentable {
         var lastLoadedURL: URL?
         var progressObservation: NSKeyValueObservation?
         private var lastSentProgress: Double = 0
+        var contentBlockingEnabled = false
+        private var appliedRuleList: WKContentRuleList?
         private var downloadItems: [WKDownload: UUID] = [:]
         private var downloadTempURLs: [UUID: URL] = [:]
 
@@ -75,6 +78,31 @@ struct WebView: NSViewRepresentable {
             self.send = send
             self.onRegisterWebView = onRegisterWebView
             self.downloadManager = downloadManager
+            super.init()
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(contentRulesDidCompile),
+                name: ContentBlockerManager.rulesDidCompileNotification,
+                object: nil
+            )
+        }
+
+        @objc private func contentRulesDidCompile() {
+            applyContentRules()
+        }
+
+        /// Adds or removes the compiled content rule list so it matches the current setting.
+        func applyContentRules() {
+            guard let controller = webView?.configuration.userContentController else { return }
+            let desired = contentBlockingEnabled ? ContentBlockerManager.shared.ruleList : nil
+            guard desired !== appliedRuleList else { return }
+            if let appliedRuleList {
+                controller.remove(appliedRuleList)
+            }
+            if let desired {
+                controller.add(desired)
+            }
+            appliedRuleList = desired
         }
 
         func observeProgress(of webView: WKWebView) {
