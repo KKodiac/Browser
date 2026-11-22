@@ -16,6 +16,8 @@ final class WindowRegistry {
     private var entries: [Entry] = []
     private var pendingRestore: [SessionData]
     private var pendingOpens: [(data: SessionData, opened: (StoreOf<AppFeature>) -> Void)] = []
+    /// Windows queued by the Session Timeline; each newly opened normal window claims one on appear.
+    private var pendingTimelineRestore: [SessionData] = []
 
     private init() {
         pendingRestore = SessionStore.load()
@@ -32,6 +34,10 @@ final class WindowRegistry {
     }
 
     func unregister(_ store: StoreOf<AppFeature>) {
+        // Snapshot for the session timeline while the closing window is still listed.
+        if entries.contains(where: { $0.store === store && !$0.isPrivate }) {
+            TimelineStore.shared.snapshotOpenWindows()
+        }
         // Closing the last normal window keeps its tabs for the next launch.
         let normal = entries.filter { !$0.isPrivate }
         if normal.count == 1, normal[0].store === store {
@@ -61,9 +67,33 @@ final class WindowRegistry {
         return open.data
     }
 
+    /// Queues windows to restore from the Session Timeline. Open one window afterwards;
+    /// each window that claims an entry opens the next until the queue is empty.
+    func queueTimelineRestore(_ windows: [SessionData]) {
+        pendingTimelineRestore.append(contentsOf: windows)
+    }
+
+    func nextTimelineRestore() -> SessionData? {
+        pendingTimelineRestore.isEmpty ? nil : pendingTimelineRestore.removeFirst()
+    }
+
+    var hasTimelineRestore: Bool { !pendingTimelineRestore.isEmpty }
+
     /// The store of another window holding `tabId`. Tabs only move between windows of the same kind.
     func store(owningTab tabId: UUID, isPrivate: Bool) -> StoreOf<AppFeature>? {
         entries.first { $0.isPrivate == isPrivate && $0.store.allTabs[id: tabId] != nil }?.store
+    }
+
+    /// The current state of every open normal window.
+    func normalWindowSessions() -> [SessionData] {
+        entries.filter { !$0.isPrivate }.map { entry in
+            SessionData(
+                ungroupedTabs: Array(entry.store.ungroupedTabs),
+                tabGroups: Array(entry.store.tabGroups),
+                selectedTabId: entry.store.selectedTabId,
+                accentColor: entry.store.accentColor
+            )
+        }
     }
 
     func saveSession() {

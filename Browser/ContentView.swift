@@ -526,6 +526,7 @@ struct ContentView: View {
                 store.send(.ungroupAll(group.id))
             }
             Button("Close Group", role: .destructive) {
+                TimelineStore.shared.snapshotOpenWindows()
                 store.send(.closeGroup(group.id))
             }
         }

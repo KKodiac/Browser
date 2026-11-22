@@ -34,6 +34,8 @@ struct AppFeature {
         var splitTabId: UUID?
         // Recently closed tabs (most recent last), bounded
         var closedTabs: [BrowserTab] = []
+        // Session timeline sheet
+        var showSessionTimeline: Bool = false
 
         var allTabs: IdentifiedArrayOf<BrowserTab> {
             var result = ungroupedTabs
