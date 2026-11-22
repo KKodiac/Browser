@@ -108,6 +108,7 @@ struct AppFeature {
         case webViewNavigationFailed(tabId: UUID, canGoBack: Bool, canGoForward: Bool)
         case webViewProvisionalNavigationFailed(tabId: UUID)
         case webViewLoadRequestConsumed(tabId: UUID)
+        case webViewProgressChanged(tabId: UUID, progress: Double)
     }
 
     var body: some ReducerOf<Self> {
@@ -486,6 +487,10 @@ struct AppFeature {
 
             case let .webViewLoadRequestConsumed(tabId):
                 updateTab(&state, id: tabId) { $0.requestedLoad = false }
+                return .none
+
+            case let .webViewProgressChanged(tabId, progress):
+                updateTab(&state, id: tabId) { $0.estimatedProgress = progress }
                 return .none
             }
         }

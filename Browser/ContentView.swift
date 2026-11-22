@@ -636,6 +636,13 @@ struct ContentView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .overlay(alignment: .top) {
+            LoadingProgressBar(
+                progress: store.selectedTab?.estimatedProgress ?? 0,
+                isLoading: store.selectedTab?.isLoading == true,
+                color: store.accentColor.color
+            )
+        }
     }
 
     // MARK: - Drag & Drop
@@ -651,6 +658,38 @@ struct ContentView: View {
             }
         }
         return true
+    }
+}
+
+// MARK: - Loading Progress Bar
+
+private struct LoadingProgressBar: View {
+    var progress: Double
+    var isLoading: Bool
+    var color: Color
+    @State private var shownProgress: Double = 0
+
+    var body: some View {
+        GeometryReader { geo in
+            Rectangle()
+                .fill(color)
+                .frame(width: geo.size.width * shownProgress, height: 2)
+        }
+        .frame(height: 2)
+        .opacity(isLoading ? 1 : 0)
+        .animation(.easeInOut(duration: 0.25), value: isLoading)
+        .allowsHitTesting(false)
+        .onAppear { shownProgress = progress }
+        .onChange(of: progress) { oldValue, newValue in
+            // Grow smoothly; jump back instantly when a new load (or tab) starts lower
+            if newValue < oldValue {
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) { shownProgress = newValue }
+            } else {
+                withAnimation(.easeOut(duration: 0.2)) { shownProgress = newValue }
+            }
+        }
     }
 }
 
