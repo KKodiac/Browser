@@ -3,6 +3,7 @@ import WebKit
 
 final class ContentBlockerManager {
     static let shared = ContentBlockerManager()
+    static let rulesDidCompileNotification = Notification.Name("ContentBlockerManagerRulesDidCompile")
 
     private(set) var ruleList: WKContentRuleList?
     private var isCompiled = false
@@ -40,6 +41,7 @@ final class ContentBlockerManager {
                 return
             }
             self?.ruleList = ruleList
+            NotificationCenter.default.post(name: ContentBlockerManager.rulesDidCompileNotification, object: nil)
         }
     }
 }

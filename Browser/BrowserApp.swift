@@ -9,7 +9,6 @@ struct BrowserApp: App {
     @State private var bookmarkStore = BookmarkStore()
     @State private var downloadManager = DownloadManager()
     @State private var historyStore = HistoryStore()
-    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -20,6 +19,9 @@ struct BrowserApp: App {
                 .frame(minWidth: 800, minHeight: 600)
                 .onAppear { restoreSession() }
                 .onDisappear { saveSession() }
+                .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
+                    saveSession()
+                }
         }
         .windowStyle(.automatic)
         .commands {
