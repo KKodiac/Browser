@@ -13,6 +13,7 @@ struct BrowserTab: Equatable, Identifiable, Codable {
     var zoomLevel: Double
     var faviconURL: URL?
     var estimatedProgress: Double
+    var loadError: String?
 
     init(
         id: UUID = UUID(),
@@ -26,7 +27,8 @@ struct BrowserTab: Equatable, Identifiable, Codable {
         isPinned: Bool = false,
         zoomLevel: Double = 1.0,
         faviconURL: URL? = nil,
-        estimatedProgress: Double = 0
+        estimatedProgress: Double = 0,
+        loadError: String? = nil
     ) {
         self.id = id
         self.url = url
@@ -40,6 +42,7 @@ struct BrowserTab: Equatable, Identifiable, Codable {
         self.zoomLevel = zoomLevel
         self.faviconURL = faviconURL
         self.estimatedProgress = estimatedProgress
+        self.loadError = loadError
     }
 
     // Exclude transient properties from persistence
@@ -61,6 +64,7 @@ struct BrowserTab: Equatable, Identifiable, Codable {
         canGoForward = false
         requestedLoad = false
         estimatedProgress = 0
+        loadError = nil
     }
 
     var displayTitle: String {

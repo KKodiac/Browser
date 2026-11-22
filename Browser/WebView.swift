@@ -159,14 +159,41 @@ struct WebView: NSViewRepresentable {
             send(.webViewNavigationFailed(
                 tabId: tab.id,
                 canGoBack: webView.canGoBack,
-                canGoForward: webView.canGoForward
+                canGoForward: webView.canGoForward,
+                errorMessage: Self.errorMessage(for: error)
             ))
         }
 
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
             if (error as NSError).code == URLError.Code.cancelled.rawValue { return }
-            lastLoadedURL = nil
-            send(.webViewProvisionalNavigationFailed(tabId: tab.id))
+            send(.webViewProvisionalNavigationFailed(tabId: tab.id, errorMessage: Self.errorMessage(for: error)))
+        }
+
+        /// User-facing message for a load error, or nil for errors that should not show an error page.
+        static func errorMessage(for error: Error) -> String? {
+            let nsError = error as NSError
+            if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled { return nil }
+            if nsError.domain == "WebKitErrorDomain" && nsError.code == 102 { return nil } // frame load interrupted
+            guard nsError.domain == NSURLErrorDomain else { return nsError.localizedDescription }
+            switch nsError.code {
+            case NSURLErrorNotConnectedToInternet, NSURLErrorNetworkConnectionLost, NSURLErrorDataNotAllowed:
+                return "You are not connected to the internet."
+            case NSURLErrorCannotFindHost, NSURLErrorDNSLookupFailed:
+                return "The server could not be found."
+            case NSURLErrorCannotConnectToHost:
+                return "Could not connect to the server."
+            case NSURLErrorTimedOut:
+                return "The server took too long to respond."
+            case NSURLErrorSecureConnectionFailed, NSURLErrorServerCertificateHasBadDate,
+                 NSURLErrorServerCertificateUntrusted, NSURLErrorServerCertificateHasUnknownRoot,
+                 NSURLErrorServerCertificateNotYetValid, NSURLErrorClientCertificateRejected,
+                 NSURLErrorClientCertificateRequired:
+                return "A secure connection to the server could not be established."
+            case NSURLErrorBadURL, NSURLErrorUnsupportedURL:
+                return "The address is not valid."
+            default:
+                return nsError.localizedDescription
+            }
         }
 
         // MARK: - Navigation Response (Download Detection)

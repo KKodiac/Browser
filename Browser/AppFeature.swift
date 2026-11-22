@@ -120,8 +120,8 @@ struct AppFeature {
         // WebView delegate callbacks
         case webViewNavigationStarted(tabId: UUID)
         case webViewNavigationFinished(tabId: UUID, url: URL?, title: String?, canGoBack: Bool, canGoForward: Bool)
-        case webViewNavigationFailed(tabId: UUID, canGoBack: Bool, canGoForward: Bool)
-        case webViewProvisionalNavigationFailed(tabId: UUID)
+        case webViewNavigationFailed(tabId: UUID, canGoBack: Bool, canGoForward: Bool, errorMessage: String?)
+        case webViewProvisionalNavigationFailed(tabId: UUID, errorMessage: String?)
         case webViewLoadRequestConsumed(tabId: UUID)
         case webViewProgressChanged(tabId: UUID, progress: Double)
     }
@@ -505,7 +505,10 @@ struct AppFeature {
             // MARK: - WebView Delegate Callbacks
 
             case let .webViewNavigationStarted(tabId):
-                updateTab(&state, id: tabId) { $0.isLoading = true }
+                updateTab(&state, id: tabId) { tab in
+                    tab.isLoading = true
+                    tab.loadError = nil
+                }
                 return .none
 
             case let .webViewNavigationFinished(tabId, url, title, canGoBack, canGoForward):
@@ -522,16 +525,20 @@ struct AppFeature {
                 }
                 return .none
 
-            case let .webViewNavigationFailed(tabId, canGoBack, canGoForward):
+            case let .webViewNavigationFailed(tabId, canGoBack, canGoForward, errorMessage):
                 updateTab(&state, id: tabId) { tab in
                     tab.isLoading = false
+                    tab.loadError = errorMessage
                     tab.canGoBack = canGoBack
                     tab.canGoForward = canGoForward
                 }
                 return .none
 
-            case let .webViewProvisionalNavigationFailed(tabId):
-                updateTab(&state, id: tabId) { $0.isLoading = false }
+            case let .webViewProvisionalNavigationFailed(tabId, errorMessage):
+                updateTab(&state, id: tabId) { tab in
+                    tab.isLoading = false
+                    tab.loadError = errorMessage
+                }
                 return .none
 
             case let .webViewLoadRequestConsumed(tabId):
