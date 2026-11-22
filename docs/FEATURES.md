@@ -37,9 +37,9 @@ Each has an OpenSpec change in `openspec/changes/`. Bugs from the first review w
 | ✅ Tab pinning | Pinned tabs shown first as icons |
 | ✅ Zoom controls | ⌘+ / ⌘- / ⌘0, per-tab zoom indicator |
 | 🚧 Split view | ⌘\\; find and zoom commands only act on the main pane |
-| ⬜ Private browsing | Spec exists, no code |
-| ⬜ Multiple windows | Spec exists, no code (all windows share one store) |
-| ⬜ URL autocomplete | Spec exists, no code |
+| ✅ Private browsing | ⇧⌘N; temporary cookies and site data, no history, Private badge, asks before bookmarking (#11) |
+| ✅ Multiple windows | ⌘N; each window has its own tabs; all windows restored on launch; drag tabs between windows (#11) |
+| 🚧 URL autocomplete | History, bookmarks and popular sites, arrow keys and Enter (#10). No inline completion |
 
 ## 3. Essential gaps
 
