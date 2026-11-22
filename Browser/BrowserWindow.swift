@@ -25,9 +25,18 @@ struct BrowserWindow: View {
         ContentView(store: store, isPrivate: isPrivate, dataStore: dataStore)
             .frame(minWidth: 800, minHeight: 600)
             .focusedSceneValue(\.windowStore, store)
+            .focusedSceneValue(\.windowIsPrivate, isPrivate)
             .onAppear {
                 let registry = WindowRegistry.shared
                 registry.register(store, isPrivate: isPrivate)
+                // A window opened for a workspace takes that workspace's tabs.
+                if !isPrivate, let data = registry.claimPendingOpen(for: store) {
+                    store.send(.restoreSession(data))
+                    if registry.hasPendingRestore {
+                        openWindow(id: Self.mainID)
+                    }
+                    return
+                }
                 guard !isPrivate, let data = registry.nextPendingRestore() else { return }
                 store.send(.restoreSession(data))
                 // Each restored window opens the next one until every saved window is back.

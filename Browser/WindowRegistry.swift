@@ -15,6 +15,7 @@ final class WindowRegistry {
 
     private var entries: [Entry] = []
     private var pendingRestore: [SessionData]
+    private var pendingOpens: [(data: SessionData, opened: (StoreOf<AppFeature>) -> Void)] = []
 
     private init() {
         pendingRestore = SessionStore.load()
@@ -45,6 +46,20 @@ final class WindowRegistry {
     }
 
     var hasPendingRestore: Bool { !pendingRestore.isEmpty }
+
+    /// Queues window contents (e.g. a workspace) for the next normal window that opens;
+    /// `opened` receives that window's store.
+    func enqueueOpen(_ data: SessionData, opened: @escaping (StoreOf<AppFeature>) -> Void) {
+        pendingOpens.append((data, opened))
+    }
+
+    /// Hands the oldest queued contents, if any, to a newly opened window.
+    func claimPendingOpen(for store: StoreOf<AppFeature>) -> SessionData? {
+        guard !pendingOpens.isEmpty else { return nil }
+        let open = pendingOpens.removeFirst()
+        open.opened(store)
+        return open.data
+    }
 
     /// The store of another window holding `tabId`. Tabs only move between windows of the same kind.
     func store(owningTab tabId: UUID, isPrivate: Bool) -> StoreOf<AppFeature>? {
