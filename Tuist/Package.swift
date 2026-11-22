@@ -14,6 +14,6 @@ let packageSettings = PackageSettings(
 let package = Package(
     name: "Browser",
     dependencies: [
-        .package(url: "https://github.com/pointfreeco/swift-composable-architecture", from: "1.17.0"),
+        .package(url: "https://github.com/pointfreeco/swift-composable-architecture", from: "1.26.2"),
     ]
 )

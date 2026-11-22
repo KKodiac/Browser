@@ -50,3 +50,6 @@ skills/
 .trae/
 .windsurf/
 .zencoder/
+
+# Tuist generated
+Derived/
