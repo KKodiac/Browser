@@ -29,6 +29,8 @@ struct AppFeature {
         var showFindBar: Bool = false
         // Split view
         var splitTabId: UUID?
+        // Recently closed tabs (most recent last), bounded
+        var closedTabs: [BrowserTab] = []
 
         var allTabs: IdentifiedArrayOf<BrowserTab> {
             var result = ungroupedTabs
@@ -46,6 +48,13 @@ struct AppFeature {
         var selectedId: UUID {
             selectedTabId ?? allTabs.first!.id
         }
+
+        /// Tabs in tab bar order: pinned, unpinned ungrouped, then grouped (unpinned).
+        var visualTabs: [BrowserTab] {
+            allTabs.filter(\.isPinned)
+                + ungroupedTabs.filter { !$0.isPinned }
+                + tabGroups.flatMap { $0.tabs.filter { !$0.isPinned } }
+        }
     }
 
     enum Action: BindableAction {
@@ -56,6 +65,12 @@ struct AppFeature {
         case addTab
         case closeTab(UUID)
         case selectTab(UUID)
+        case closeSelectedTab
+        case reopenClosedTab
+        case selectTabAtIndex(Int)
+        case selectLastTab
+        case selectNextTab
+        case selectPreviousTab
         // URL
         case urlBarSubmitted
         // Navigation commands
@@ -135,6 +150,12 @@ struct AppFeature {
                 return .none
 
             case let .closeTab(tabId):
+                if let closed = state.allTabs[id: tabId], closed.url != nil {
+                    state.closedTabs.append(closed)
+                    if state.closedTabs.count > 20 {
+                        state.closedTabs.removeFirst()
+                    }
+                }
                 state.ungroupedTabs.remove(id: tabId)
                 for index in state.tabGroups.indices {
                     state.tabGroups[index].tabs.remove(id: tabId)
@@ -161,6 +182,34 @@ struct AppFeature {
                     state.urlBarText = t.urlString
                 }
                 return .none
+
+            case .closeSelectedTab:
+                return .send(.closeTab(state.selectedId))
+
+            case .reopenClosedTab:
+                guard let closed = state.closedTabs.popLast() else { return .none }
+                let tab = BrowserTab(url: closed.url, title: closed.title, suggestedURL: closed.urlString)
+                state.ungroupedTabs.append(tab)
+                state.selectedTabId = tab.id
+                state.urlBarText = tab.urlString
+                return .none
+
+            case let .selectTabAtIndex(index):
+                let tabs = state.visualTabs
+                guard tabs.indices.contains(index) else { return .none }
+                return .send(.selectTab(tabs[index].id))
+
+            case .selectLastTab:
+                guard let last = state.visualTabs.last else { return .none }
+                return .send(.selectTab(last.id))
+
+            case .selectNextTab, .selectPreviousTab:
+                let tabs = state.visualTabs
+                guard !tabs.isEmpty else { return .none }
+                let current = tabs.firstIndex { $0.id == state.selectedId } ?? 0
+                var offset = -1
+                if case .selectNextTab = action { offset = 1 }
+                return .send(.selectTab(tabs[(current + offset + tabs.count) % tabs.count].id))
 
             // MARK: - URL
 
