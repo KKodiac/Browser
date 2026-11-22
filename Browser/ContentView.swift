@@ -24,6 +24,7 @@ struct ContentView: View {
     @FocusState private var urlBarFocused: Bool
     @State private var urlSuggestions = URLSuggestionsModel()
     @FocusState private var renameFieldFocused: Bool
+    @State private var showCommandBar = false
 
     var body: some View {
         mainLayout
@@ -43,6 +44,14 @@ struct ContentView: View {
                 performFind: { text, step in performFind(text, step: step) },
                 recordHistory: { if let tab = store.selectedTab { recordHistory(for: tab) } }
             ))
+            .overlay {
+                if showCommandBar {
+                    CommandBar(store: store, onDismiss: { showCommandBar = false })
+                }
+            }
+            .onChange(of: store.toggleCommandBarTrigger) { _, _ in
+                showCommandBar.toggle()
+            }
             .alert("Bookmark this page?", isPresented: $showPrivateBookmarkAlert) {
                 Button("Add Bookmark") {
                     if let tab = store.selectedTab, let url = tab.url {
