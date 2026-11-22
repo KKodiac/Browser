@@ -23,6 +23,7 @@ struct AppFeature {
         var toggleFindBarTrigger: Int = 0
         var toggleSplitViewTrigger: Int = 0
         var toggleCommandBarTrigger: Int = 0
+        var showTabTriageTrigger: Int = 0
         // Find in page
         var findText: String = ""
         var findMatchCount: Int = 0
@@ -126,6 +127,9 @@ struct AppFeature {
         case toggleSplitView
         // Command bar
         case toggleCommandBar
+        // Tab triage
+        case showTabTriage
+        case applyTriage(TabTriagePlan)
         // Favicon
         case updateFavicon(tabId: UUID, faviconURL: URL?)
         // WebView delegate callbacks
@@ -172,6 +176,7 @@ struct AppFeature {
 
             case let .selectTab(tabId):
                 state.selectedTabId = tabId
+                updateTab(&state, id: tabId) { $0.lastActiveAt = Date() }
                 if let t = state.allTabs[id: tabId] {
                     state.urlBarText = t.urlString
                 }
@@ -501,6 +506,34 @@ struct AppFeature {
             case .toggleCommandBar:
                 state.toggleCommandBarTrigger += 1
                 return .none
+
+            // MARK: - Tab Triage
+
+            case .showTabTriage:
+                state.showTabTriageTrigger += 1
+                return .none
+
+            case let .applyTriage(plan):
+                for suggestion in plan.groups {
+                    var tabs: IdentifiedArrayOf<BrowserTab> = []
+                    for tabId in suggestion.tabIds {
+                        // Pinned tabs are never moved.
+                        if let tab = state.allTabs[id: tabId], !tab.isPinned {
+                            state.ungroupedTabs.remove(id: tabId)
+                            for index in state.tabGroups.indices {
+                                state.tabGroups[index].tabs.remove(id: tabId)
+                            }
+                            tabs.append(tab)
+                        }
+                    }
+                    state.tabGroups.removeAll { $0.tabs.isEmpty }
+                    if !tabs.isEmpty {
+                        state.tabGroups.append(TabGroup(label: suggestion.name, color: suggestion.color, tabs: tabs))
+                    }
+                }
+                // Pinned tabs are never closed.
+                let closeIds = plan.closeTabIds.filter { state.allTabs[id: $0]?.isPinned == false }
+                return .merge(closeIds.map { .send(.closeTab($0)) })
 
             // MARK: - Favicon
 

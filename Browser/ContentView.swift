@@ -52,6 +52,7 @@ struct ContentView: View {
             .onChange(of: store.toggleCommandBarTrigger) { _, _ in
                 showCommandBar.toggle()
             }
+            .modifier(TabTriageModifier(store: store))
             .alert("Bookmark this page?", isPresented: $showPrivateBookmarkAlert) {
                 Button("Add Bookmark") {
                     if let tab = store.selectedTab, let url = tab.url {
