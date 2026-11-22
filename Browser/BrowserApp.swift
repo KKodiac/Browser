@@ -14,6 +14,7 @@ struct BrowserApp: App {
         // The app restores its own windows from the saved session; turn off macOS window
         // restoration so windows aren't reopened twice.
         UserDefaults.standard.set(false, forKey: "NSQuitAlwaysKeepsWindows")
+        TimelineStore.shared.startAutosnapshots()
     }
 
     var body: some Scene {
@@ -120,6 +121,10 @@ struct BrowserApp: App {
                     store?.send(.toggleHistoryPanel)
                 }
                 .keyboardShortcut("y", modifiers: .command)
+                Button("Session Timeline…") {
+                    store?.send(.binding(.set(\.showSessionTimeline, true)))
+                }
+                .keyboardShortcut("y", modifiers: [.command, .option])
             }
             CommandMenu("View") {
                 Button("Zoom In") {

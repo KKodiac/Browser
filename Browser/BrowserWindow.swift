@@ -37,6 +37,14 @@ struct BrowserWindow: View {
                     }
                     return
                 }
+                // A window opened by the Session Timeline takes the next snapshot window.
+                if !isPrivate, let data = registry.nextTimelineRestore() {
+                    store.send(.restoreSession(data))
+                    if registry.hasTimelineRestore {
+                        openWindow(id: Self.mainID)
+                    }
+                    return
+                }
                 guard !isPrivate, let data = registry.nextPendingRestore() else { return }
                 store.send(.restoreSession(data))
                 // Each restored window opens the next one until every saved window is back.
@@ -46,6 +54,9 @@ struct BrowserWindow: View {
             }
             .onDisappear {
                 WindowRegistry.shared.unregister(store)
+            }
+            .sheet(isPresented: $store.showSessionTimeline) {
+                TimelineView(windowStore: store)
             }
     }
 }
