@@ -3,7 +3,7 @@ import SwiftUI
 struct BookmarksSidebar: View {
     @Environment(BookmarkStore.self) private var store
     var onSelectBookmark: (URL) -> Void
-    @State private var editingBookmarkId: UUID?
+    @Binding var editingBookmarkId: UUID?
     @State private var editingFolderId: UUID?
     @State private var editText: String = ""
     @State private var creatingFolder = false
@@ -25,6 +25,15 @@ struct BookmarksSidebar: View {
         }
         .frame(width: 240)
         .background(.ultraThinMaterial)
+        .onAppear { syncEditText() }
+        .onChange(of: editingBookmarkId) { _, _ in syncEditText() }
+    }
+
+    /// Loads the bookmark's title into the edit field when editing is started externally (e.g. Cmd+D).
+    private func syncEditText() {
+        guard let id = editingBookmarkId, let bookmark = store.bookmarks.first(where: { $0.id == id }) else { return }
+        editText = bookmark.title
+        editingFolderId = nil
     }
 
     // MARK: - Header

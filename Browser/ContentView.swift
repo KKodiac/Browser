@@ -10,7 +10,6 @@ struct ContentView: View {
     @Environment(HistoryStore.self) private var historyStore
     @AppStorage("contentBlockingEnabled") private var contentBlockingEnabled: Bool = true
     @State private var currentWebView: WKWebView?
-    @State private var splitWebView: WKWebView?
     @State private var hoveredTabId: UUID?
     @State private var draggedTabId: UUID?
     @State private var showBookmarksSidebar = false
@@ -44,7 +43,7 @@ struct ContentView: View {
     private var mainLayout: some View {
         HStack(spacing: 0) {
             if showBookmarksSidebar {
-                BookmarksSidebar(onSelectBookmark: openBookmarkURL)
+                BookmarksSidebar(onSelectBookmark: openBookmarkURL, editingBookmarkId: $editingBookmarkId)
                 Divider()
             }
             if showHistoryPanel {
@@ -595,9 +594,7 @@ struct ContentView: View {
                         tab: splitTab,
                         isActive: true,
                         send: { store.send($0) },
-                        onRegisterWebView: { view in
-                            if let w = view { splitWebView = w }
-                        },
+                        onRegisterWebView: { _ in },
                         downloadManager: downloadManager,
                         contentBlockingEnabled: contentBlockingEnabled
                     )
