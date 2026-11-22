@@ -114,11 +114,12 @@ struct WebView: NSViewRepresentable {
             })()
             """
             webView.evaluateJavaScript(js) { [weak self] result, _ in
-                guard let self, let urlString = result as? String, let url = URL(string: urlString) else {
+                guard let self else { return }
+                guard let urlString = result as? String, let url = URL(string: urlString) else {
                     // Fallback to /favicon.ico
                     if let pageURL = webView.url, let scheme = pageURL.scheme, let host = pageURL.host {
                         let fallback = URL(string: "\(scheme)://\(host)/favicon.ico")
-                        self?.send(.updateFavicon(tabId: self?.tab.id ?? UUID(), faviconURL: fallback))
+                        self.send(.updateFavicon(tabId: self.tab.id, faviconURL: fallback))
                     }
                     return
                 }
