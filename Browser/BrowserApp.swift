@@ -8,6 +8,7 @@ struct BrowserApp: App {
     @State private var bookmarkStore = BookmarkStore()
     @State private var downloadManager = DownloadManager()
     @State private var historyStore = HistoryStore()
+    @State private var workspaceStore = WorkspaceStore.shared
 
     init() {
         // The app restores its own windows from the saved session; turn off macOS window
@@ -135,6 +136,13 @@ struct BrowserApp: App {
                 }
                 .keyboardShortcut("\\", modifiers: .command)
             }
+        }
+        .commands {
+            WorkspaceCommands(workspaceStore: workspaceStore)
+        }
+
+        Window("Workspaces", id: ManageWorkspacesView.windowID) {
+            ManageWorkspacesView(workspaceStore: workspaceStore)
         }
 
         WindowGroup("Private Browsing", id: BrowserWindow.privateID) {
